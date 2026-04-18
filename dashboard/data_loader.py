@@ -4,7 +4,9 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from db.database import connect
+from db.database import connect, init_db
+
+init_db()
 from dashboard.classifiers import (
     cpv_label,
     detect_modules,
