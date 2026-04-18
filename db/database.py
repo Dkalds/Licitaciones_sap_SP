@@ -1,13 +1,15 @@
-"""Capa de persistencia SQLite para licitaciones."""
+"""Capa de persistencia SQLite / Turso (libSQL) para licitaciones."""
 from __future__ import annotations
 
-import sqlite3
+import re
 from contextlib import contextmanager
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Iterable, Iterator
 
-from config import DB_PATH
+import libsql
+
+from config import DB_PATH, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, TURSO_LOCAL_DB
 
 
 SCHEMA = """
@@ -130,12 +132,22 @@ class Licitacion:
 
 
 @contextmanager
-def connect() -> Iterator[sqlite3.Connection]:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+def connect() -> Iterator:
+    kwargs: dict = {}
+    if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN:
+        kwargs["sync_url"] = TURSO_DATABASE_URL
+        kwargs["auth_token"] = TURSO_AUTH_TOKEN
+        db_path = str(TURSO_LOCAL_DB)
+    else:
+        db_path = str(DB_PATH)
+    conn = libsql.connect(db_path, **kwargs)
+    if kwargs:
+        conn.sync()
     try:
         yield conn
         conn.commit()
+        if kwargs:
+            conn.sync()
     finally:
         conn.close()
 
@@ -149,11 +161,16 @@ _NEW_COLUMNS_LICITACIONES = [
 ]
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
+_VALID_COLUMN_NAME = re.compile(r"^[a-zA-Z_]\w*$")
+
+
+def _migrate(conn) -> None:
     """Aplica ALTER TABLE ADD COLUMN para BDs preexistentes."""
     cols = {r[1] for r in conn.execute(
         "PRAGMA table_info(licitaciones)").fetchall()}
     for name, ctype in _NEW_COLUMNS_LICITACIONES:
+        if not _VALID_COLUMN_NAME.match(name):
+            raise ValueError(f"Nombre de columna no válido: {name!r}")
         if name not in cols:
             conn.execute(
                 f"ALTER TABLE licitaciones ADD COLUMN {name} {ctype}")
@@ -161,7 +178,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 def init_db() -> None:
     with connect() as c:
-        c.executescript(SCHEMA)
+        for stmt in SCHEMA.split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                c.execute(stmt)
         _migrate(c)
 
 
@@ -173,16 +193,18 @@ def upsert_licitaciones(items: Iterable[Licitacion]) -> tuple[int, int]:
         for lic in items:
             existing = c.execute(
                 "SELECT 1 FROM licitaciones WHERE id_externo = ?",
-                (lic.id_externo,),
+                [lic.id_externo],
             ).fetchone()
             data = asdict(lic)
-            cols = ", ".join(data.keys())
-            placeholders = ", ".join(f":{k}" for k in data)
-            updates = ", ".join(f"{k}=excluded.{k}" for k in data if k != "id_externo")
+            keys = list(data.keys())
+            vals = list(data.values())
+            cols = ", ".join(keys)
+            placeholders = ", ".join("?" for _ in keys)
+            updates = ", ".join(f"{k}=excluded.{k}" for k in keys if k != "id_externo")
             c.execute(
                 f"INSERT INTO licitaciones ({cols}) VALUES ({placeholders}) "
                 f"ON CONFLICT(id_externo) DO UPDATE SET {updates}",
-                data,
+                vals,
             )
             if existing:
                 actualizadas += 1
@@ -197,20 +219,22 @@ def replace_adjudicaciones(licitacion_id: str,
     items = list(items)
     with connect() as c:
         c.execute("DELETE FROM adjudicaciones WHERE licitacion_id = ?",
-                  (licitacion_id,))
+                  [licitacion_id])
         n = 0
         for adj in items:
             data = asdict(adj)
-            cols = ", ".join(data.keys())
-            placeholders = ", ".join(f":{k}" for k in data)
+            keys = list(data.keys())
+            vals = list(data.values())
+            cols = ", ".join(keys)
+            placeholders = ", ".join("?" for _ in keys)
             try:
                 c.execute(
                     f"INSERT INTO adjudicaciones ({cols}) "
                     f"VALUES ({placeholders})",
-                    data,
+                    vals,
                 )
                 n += 1
-            except sqlite3.IntegrityError:
+            except Exception:
                 pass  # duplicado por UNIQUE constraint
     return n
 

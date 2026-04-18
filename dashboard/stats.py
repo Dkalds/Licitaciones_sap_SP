@@ -7,7 +7,10 @@ from db.database import connect
 
 def load_dataframe() -> pd.DataFrame:
     with connect() as c:
-        df = pd.read_sql_query("SELECT * FROM licitaciones", c)
+        cursor = c.execute("SELECT * FROM licitaciones")
+        rows = cursor.fetchall()
+        cols = [d[0] for d in cursor.description]
+        df = pd.DataFrame(rows, columns=cols)
     if not df.empty:
         df["fecha_publicacion"] = pd.to_datetime(
             df["fecha_publicacion"], errors="coerce", utc=True,

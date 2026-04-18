@@ -3,5 +3,7 @@ __pycache__/
 *.pyc
 data/downloads/
 data/*.log
+data/*.db
+data/*.db-*
 .streamlit/secrets.toml
 .env

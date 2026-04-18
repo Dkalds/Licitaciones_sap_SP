@@ -2,10 +2,21 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 ROOT = Path(__file__).parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", ROOT / "data"))
 DOWNLOADS_DIR = DATA_DIR / "downloads"
 DB_PATH = Path(os.environ.get("DB_PATH", DATA_DIR / "licitaciones.db"))
+
+# Turso (libSQL cloud) — si están definidas, se usa réplica embebida
+TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL", "")
+TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
+# Archivo local distinto para la réplica embebida de Turso
+TURSO_LOCAL_DB = Path(os.environ.get(
+    "TURSO_LOCAL_DB", DATA_DIR / "licitaciones_replica.db"))
 
 DATA_DIR.mkdir(exist_ok=True)
 DOWNLOADS_DIR.mkdir(exist_ok=True)
@@ -65,9 +76,12 @@ PLACE_SEARCH_URL = (
 # User agent identificable (buena práctica scraping ético)
 USER_AGENT = (
     "LicitacionesSAP-Bot/1.0 "
-    "(+contacto: usuario@ejemplo.com; uso: análisis estadístico, "
-    "datos abiertos Ley 37/2007)"
+    "(uso: análisis estadístico, datos abiertos Ley 37/2007)"
 )
 
 REQUEST_TIMEOUT = 30
 REQUEST_DELAY_SECONDS = 1.5  # delay entre requests para no saturar
+
+# Límites de tamaño para descargas (defensa contra recursos excesivos)
+MAX_DOWNLOAD_SIZE_BYTES = 1 * 1024 * 1024 * 1024   # 1 GB por ZIP mensual
+MAX_XML_SIZE_BYTES = 500 * 1024 * 1024              # 500 MB por fichero XML
