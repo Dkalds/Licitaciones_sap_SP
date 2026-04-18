@@ -678,6 +678,131 @@ with tab_adjudicatarios:
                                margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
 
+        # ── Métricas comparativas por empresa ──
+        st.divider()
+        st.subheader("📊 Métricas comparativas por empresa")
+        st.caption("Para estudiar rentabilidad y perfil competitivo. "
+                    "Solo empresas con al menos 2 adjudicaciones.")
+
+        def _pct_top_organo(s: pd.Series) -> float:
+            if s.empty:
+                return 0.0
+            counts = s.value_counts(normalize=True)
+            return float(counts.iloc[0] * 100)
+
+        adj_m = adj.copy()
+        adj_m["es_monopolio"] = (adj_m["n_ofertas_recibidas"] == 1).astype(int)
+        adj_m["año"] = adj_m["fecha_adjudicacion"].dt.year
+
+        metr = (adj_m.groupby("empresa_key", dropna=False)
+                       .agg(empresa=("nombre_canonico", "first"),
+                            nif=("nif_norm", "first"),
+                            contratos=("id", "count"),
+                            importe_total=("importe_adjudicado", "sum"),
+                            importe_medio=("importe_adjudicado", "mean"),
+                            importe_mediano=("importe_adjudicado", "median"),
+                            baja_media=("baja_pct", "mean"),
+                            baja_mediana=("baja_pct", "median"),
+                            ofertas_medias=("n_ofertas_recibidas", "mean"),
+                            pct_monopolio=("es_monopolio",
+                                            lambda s: s.mean() * 100),
+                            organos=("organo_contratacion", "nunique"),
+                            pct_top_organo=("organo_contratacion",
+                                              _pct_top_organo),
+                            primera=("fecha_adjudicacion", "min"),
+                            ultima=("fecha_adjudicacion", "max"))
+                       .reset_index(drop=True))
+        metr = metr[metr["contratos"] >= 2].copy()
+        if not metr.empty:
+            antig_dias = (metr["ultima"] - metr["primera"]).dt.days
+            antig_años = (antig_dias / 365.25).clip(lower=0.5)
+            metr["antiguedad_años"] = antig_años.round(1)
+            metr["contratos_año"] = (metr["contratos"] / antig_años).round(1)
+            total_imp = metr["importe_total"].sum()
+            metr["cuota_pct"] = (
+                metr["importe_total"] / total_imp * 100
+                if total_imp else 0)
+            metr = metr.sort_values("importe_total", ascending=False)
+
+            cols_show = ["empresa", "nif", "contratos", "contratos_año",
+                          "antiguedad_años", "importe_total", "cuota_pct",
+                          "importe_medio", "importe_mediano",
+                          "baja_media", "baja_mediana",
+                          "ofertas_medias", "pct_monopolio",
+                          "organos", "pct_top_organo", "ultima"]
+            st.dataframe(
+                metr[cols_show].head(100),
+                use_container_width=True, hide_index=True, height=420,
+                column_config={
+                    "empresa": st.column_config.TextColumn("Empresa",
+                                                             width="large"),
+                    "nif": st.column_config.TextColumn("NIF",
+                                                        width="small"),
+                    "contratos": st.column_config.NumberColumn("Contratos"),
+                    "contratos_año": st.column_config.NumberColumn(
+                        "Contr./año",
+                        help="Ritmo de adjudicaciones por año activo"),
+                    "antiguedad_años": st.column_config.NumberColumn(
+                        "Antigüedad",
+                        help="Años entre primera y última adjudicación"),
+                    "importe_total": st.column_config.NumberColumn(
+                        "Importe total", format="%.0f €"),
+                    "cuota_pct": st.column_config.NumberColumn(
+                        "Cuota %", format="%.1f%%",
+                        help="% sobre importe adjudicado total del filtro"),
+                    "importe_medio": st.column_config.NumberColumn(
+                        "Imp. medio", format="%.0f €"),
+                    "importe_mediano": st.column_config.NumberColumn(
+                        "Imp. mediano", format="%.0f €"),
+                    "baja_media": st.column_config.NumberColumn(
+                        "Baja media", format="%.1f%%",
+                        help="Agresividad media en oferta"),
+                    "baja_mediana": st.column_config.NumberColumn(
+                        "Baja mediana", format="%.1f%%"),
+                    "ofertas_medias": st.column_config.NumberColumn(
+                        "Ofertas enfrent.", format="%.1f",
+                        help="Competencia media a la que se enfrentó"),
+                    "pct_monopolio": st.column_config.NumberColumn(
+                        "% Monopolio", format="%.0f%%",
+                        help="% de sus contratos con 1 sola oferta"),
+                    "organos": st.column_config.NumberColumn("Órganos"),
+                    "pct_top_organo": st.column_config.NumberColumn(
+                        "% top-1 órgano", format="%.0f%%",
+                        help="Dependencia del cliente principal"),
+                    "ultima": st.column_config.DateColumn("Última adj."),
+                },
+            )
+
+            # Scatter: posicionamiento competitivo
+            st.markdown("##### 🎯 Mapa de posicionamiento competitivo")
+            scatter = metr.dropna(
+                subset=["importe_medio", "baja_media"]).head(60)
+            if not scatter.empty:
+                fig = px.scatter(
+                    scatter, x="baja_media", y="importe_medio",
+                    size="contratos", color="pct_monopolio",
+                    hover_name="empresa",
+                    hover_data={"contratos": True,
+                                  "importe_total": ":,.0f",
+                                  "ofertas_medias": ":.1f",
+                                  "pct_monopolio": ":.0f"},
+                    template=PLOTLY_TEMPLATE,
+                    color_continuous_scale="RdYlGn_r", log_y=True,
+                    labels={"baja_media": "Baja media (%) — agresividad",
+                              "importe_medio": "Importe medio por contrato (€, log)",
+                              "pct_monopolio": "% monopolio"})
+                fig.update_layout(height=520,
+                                   margin=dict(t=20, b=10, l=10, r=10))
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption("📍 Cuadrante **arriba-derecha**: contratos grandes "
+                            "con baja agresiva (alta competencia). "
+                            "**Arriba-izquierda con color rojo**: contratos "
+                            "grandes sin competencia (clientes cautivos). "
+                            "Tamaño de burbuja = volumen de contratos.")
+        else:
+            st.info("Necesitas empresas con ≥2 adjudicaciones para "
+                     "calcular métricas comparativas.")
+
         # ── Tabla buscable + drill-down por empresa ──
         st.divider()
         st.subheader("🔍 Buscador de empresas")
@@ -770,6 +895,39 @@ with tab_adjudicatarios:
                     "ultima": st.column_config.DateColumn("Última adj."),
                 },
             )
+
+            # Métricas comparativas de las empresas seleccionadas
+            if "empresa_key" in metr.columns or not metr.empty:
+                comp_metr = metr[metr["empresa"].isin(
+                    [opciones_df[opciones_df["nombre"] == e]["nombre"].iloc[0]
+                     for e in empresas_sel])]
+                if not comp_metr.empty:
+                    st.markdown("##### 📐 Métricas comparativas")
+                    cols_min = ["empresa", "contratos", "importe_medio",
+                                 "baja_media", "ofertas_medias",
+                                 "pct_monopolio", "pct_top_organo",
+                                 "contratos_año"]
+                    st.dataframe(
+                        comp_metr[cols_min], use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "empresa": st.column_config.TextColumn("Empresa"),
+                            "contratos": st.column_config.NumberColumn(
+                                "Contratos"),
+                            "importe_medio": st.column_config.NumberColumn(
+                                "Imp. medio", format="%.0f €"),
+                            "baja_media": st.column_config.NumberColumn(
+                                "Baja media", format="%.1f%%"),
+                            "ofertas_medias": st.column_config.NumberColumn(
+                                "Ofertas enfrent.", format="%.1f"),
+                            "pct_monopolio": st.column_config.NumberColumn(
+                                "% Monopolio", format="%.0f%%"),
+                            "pct_top_organo": st.column_config.NumberColumn(
+                                "% top-1 órgano", format="%.0f%%"),
+                            "contratos_año": st.column_config.NumberColumn(
+                                "Contr./año"),
+                        },
+                    )
 
             # Comparativa visual cuando hay >1 empresa
             if len(empresas_sel) > 1:
