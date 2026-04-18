@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+
 from scraper.codice_parser import parse_summary
 
 

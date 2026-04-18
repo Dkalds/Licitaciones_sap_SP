@@ -28,6 +28,7 @@ def mock_streamlit():
 def _import_auth():
     """Re-importa auth.py para que use el streamlit mockeado."""
     import importlib
+
     import dashboard.auth as auth_mod
     importlib.reload(auth_mod)
     return auth_mod
@@ -35,7 +36,7 @@ def _import_auth():
 
 class TestCheckPasswordNoAuth:
     def test_sin_contraseña_devuelve_true(self, mock_streamlit):
-        st_mock, session = mock_streamlit
+        _st_mock, _session = mock_streamlit
         with patch("config.DASHBOARD_PASSWORD", ""):
             auth = _import_auth()
             with patch.object(auth, "_get_password", return_value=""):
@@ -45,7 +46,7 @@ class TestCheckPasswordNoAuth:
 
 class TestSessionTimeout:
     def test_sesion_reciente_no_expira(self, mock_streamlit):
-        st_mock, session = mock_streamlit
+        _st_mock, session = mock_streamlit
         session["authenticated"] = True
         session["_auth_time"] = time.time()
 
@@ -60,6 +61,8 @@ class TestSessionTimeout:
         st_mock, session = mock_streamlit
         session["authenticated"] = True
         session["_auth_time"] = time.time() - 100  # 100 segundos atrás
+        # El botón no está pulsado para no entrar en hmac.compare_digest
+        st_mock.button.return_value = False
 
         auth = _import_auth()
         with patch.object(auth, "_get_password", return_value="secret"):
@@ -88,20 +91,22 @@ class TestRateLimiting:
         st_mock, session = mock_streamlit
         # Lockout ya expirado
         session["_login_lockout_until"] = time.time() - 5
+        # El botón no está pulsado para no entrar en hmac.compare_digest
+        st_mock.button.return_value = False
 
         auth = _import_auth()
         with patch.object(auth, "_get_password", return_value="secret"):
+            # st.stop() se llama al final del formulario (comportamiento normal)
             with pytest.raises(SystemExit):
                 auth.check_password()
 
-        # st.stop() es llamado por el formulario vacío, no por lockout
-        # Lo importante es que no llamó a st.warning con el mensaje de lockout
+        # El stop NO fue por lockout — no hubo warning de espera
         warning_calls = [str(c) for c in st_mock.warning.call_args_list]
         assert not any("lockout" in c.lower() or "espera" in c.lower()
                         for c in warning_calls)
 
     def test_record_failed_attempt_incrementa_contador(self, mock_streamlit):
-        st_mock, session = mock_streamlit
+        _st_mock, session = mock_streamlit
         auth = _import_auth()
 
         auth._record_failed_attempt()
@@ -111,7 +116,7 @@ class TestRateLimiting:
         assert session["_login_attempts"] == 2
 
     def test_lockout_activado_tras_umbral(self, mock_streamlit):
-        st_mock, session = mock_streamlit
+        _st_mock, session = mock_streamlit
         auth = _import_auth()
 
         # Simular MAX_ATTEMPTS_BEFORE_LOCKOUT intentos fallidos
@@ -123,7 +128,7 @@ class TestRateLimiting:
         assert session["_login_lockout_until"] > time.time()
 
     def test_lockout_progresivo_crece(self, mock_streamlit):
-        st_mock, session = mock_streamlit
+        _st_mock, session = mock_streamlit
         auth = _import_auth()
 
         # Primer lockout
@@ -138,7 +143,7 @@ class TestRateLimiting:
         assert lockout2 > lockout1
 
     def test_lockout_maximo_no_supera_limite(self, mock_streamlit):
-        st_mock, session = mock_streamlit
+        _st_mock, session = mock_streamlit
         auth = _import_auth()
 
         # Simular muchos intentos fallidos

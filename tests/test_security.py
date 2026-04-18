@@ -1,7 +1,6 @@
 """Tests para dashboard/utils/security.py — validación de URLs."""
 from __future__ import annotations
 
-import pytest
 from dashboard.utils.security import safe_url
 
 

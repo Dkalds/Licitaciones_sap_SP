@@ -1,17 +1,11 @@
 """Tests para db/database.py — idempotencia del upsert y persistencia."""
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from db.database import (
     Adjudicacion,
     Licitacion,
-    init_db,
-    replace_adjudicaciones,
-    upsert_licitaciones,
 )
 
 
@@ -25,6 +19,7 @@ def tmp_db(monkeypatch, tmp_path):
 
     # Recargar config con los nuevos env vars
     import importlib
+
     import config as cfg
     importlib.reload(cfg)
     import db.database as db_mod
