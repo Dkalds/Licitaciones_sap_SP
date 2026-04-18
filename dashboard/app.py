@@ -8,10 +8,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import hmac
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from config import DASHBOARD_PASSWORD
 from dashboard.data_loader import (load_adjudicaciones, load_dataframe,
                                      load_extracciones)
 from dashboard.forecast import build_forecast_df
@@ -59,6 +62,28 @@ CSS = """
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
+
+
+# ── Autenticación ────────────────────────────────────────────────────────
+def _check_password() -> bool:
+    """Muestra login y devuelve True si está autenticado o no hay password."""
+    if not DASHBOARD_PASSWORD:
+        return True
+    if st.session_state.get("authenticated"):
+        return True
+
+    st.markdown("### 🔒 Acceso restringido")
+    pwd = st.text_input("Contraseña", type="password", key="login_pwd")
+    if st.button("Entrar", type="primary"):
+        if hmac.compare_digest(pwd, DASHBOARD_PASSWORD):
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("Contraseña incorrecta.")
+    st.stop()
+
+
+_check_password()
 
 PLOTLY_TEMPLATE = "plotly_dark"
 COLOR_SEQUENCE = px.colors.qualitative.Vivid
