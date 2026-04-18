@@ -1,7 +1,6 @@
 """Tests para scraper/filters.py — detección de keywords SAP."""
 from __future__ import annotations
 
-import pytest
 from scraper.filters import matches_sap
 
 
@@ -15,7 +14,7 @@ class TestMatchesSap:
         assert any("sap" in k for k in kws)
 
     def test_keyword_s4hana(self):
-        found, kws = matches_sap("Migración a S/4HANA en el Ministerio")
+        found, _kws = matches_sap("Migración a S/4HANA en el Ministerio")
         assert found is True
 
     def test_keyword_abap(self):
@@ -24,11 +23,11 @@ class TestMatchesSap:
         assert "abap" in kws
 
     def test_keyword_fiori(self):
-        found, kws = matches_sap("Implantación Fiori en ayuntamiento")
+        found, _kws = matches_sap("Implantación Fiori en ayuntamiento")
         assert found is True
 
     def test_keyword_en_summary(self):
-        found, kws = matches_sap(None, "Proyecto SAP S/4HANA completo")
+        found, _kws = matches_sap(None, "Proyecto SAP S/4HANA completo")
         assert found is True
 
     def test_multiples_keywords_devuelve_todas(self):
@@ -39,7 +38,7 @@ class TestMatchesSap:
         assert any("fiori" in k for k in kws)
 
     def test_case_insensitive(self):
-        found, kws = matches_sap("sistema sap hana")
+        found, _kws = matches_sap("sistema sap hana")
         assert found is True
 
     # ── Falsos positivos — palabras que contienen 'sap' pero no son SAP ──
@@ -64,15 +63,15 @@ class TestMatchesSap:
         assert kws == []
 
     def test_string_vacio_devuelve_false(self):
-        found, kws = matches_sap("")
+        found, _kws = matches_sap("")
         assert found is False
 
     def test_multiples_none(self):
-        found, kws = matches_sap(None, None, None)
+        found, _kws = matches_sap(None, None, None)
         assert found is False
 
     def test_primero_none_segundo_con_keyword(self):
-        found, kws = matches_sap(None, "SAP ERP implantación")
+        found, _kws = matches_sap(None, "SAP ERP implantación")
         assert found is True
 
     # ── Retorno: lista ordenada de keywords ─────────────────────────────

@@ -1,7 +1,6 @@
 """Tests para dashboard/classifiers.py — clasificadores de datos."""
 from __future__ import annotations
 
-import pytest
 from dashboard.classifiers import (
     cpv_label,
     detect_modules,
