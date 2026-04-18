@@ -963,8 +963,14 @@ with tab_prevision:
                              "importe": ":,.0f",
                              "relicit_inicio": True,
                              "label": False})
-            fig.add_vline(x=hoy.isoformat(), line_dash="dash",
-                           line_color="#EF4444", annotation_text="Hoy")
+            fig.add_shape(
+                type="line", x0=hoy.isoformat(), x1=hoy.isoformat(),
+                y0=0, y1=1, yref="paper",
+                line=dict(color="#EF4444", dash="dash"))
+            fig.add_annotation(
+                x=hoy.isoformat(), y=1, yref="paper",
+                text="Hoy", showarrow=False,
+                font=dict(color="#EF4444"), yanchor="bottom")
             fig.update_yaxes(autorange="reversed")
             fig.update_layout(height=600,
                                margin=dict(t=20, b=10, l=10, r=10),
