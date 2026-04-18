@@ -1,3 +1,8 @@
+# ─────────────────────────────────────────────────────────────
+# Archivo GENERADO desde dashboard/theme/tokens.py.
+# No editar a mano: se sobrescribe al ejecutar:
+#   python -m dashboard.theme.streamlit_config
+# ─────────────────────────────────────────────────────────────
 [theme]
 base = "dark"
 primaryColor = "#00B4D8"
