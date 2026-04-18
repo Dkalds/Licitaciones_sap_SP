@@ -11,6 +11,9 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", ROOT / "data"))
 DOWNLOADS_DIR = DATA_DIR / "downloads"
 DB_PATH = Path(os.environ.get("DB_PATH", DATA_DIR / "licitaciones.db"))
 
+# Contraseña para proteger el dashboard (vacío = sin autenticación)
+DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+
 # Turso (libSQL cloud) — si están definidas, se usa réplica embebida
 TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL", "")
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
