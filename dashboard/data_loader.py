@@ -82,6 +82,13 @@ def load_adjudicaciones() -> pd.DataFrame:
                        * 100).where(
         (df["importe_licitacion"] > 0) & df["importe_adjudicado"].notna())
 
+    # Lead time: días desde publicación hasta adjudicación
+    _fp = df["fecha_publicacion"]
+    if hasattr(_fp.dt, "tz") and _fp.dt.tz is not None:
+        _fp = _fp.dt.tz_localize(None)
+    df["lead_time_dias"] = (df["fecha_adjudicacion"] - _fp).dt.days
+    df.loc[df["lead_time_dias"] <= 0, "lead_time_dias"] = pd.NA
+
     if "ccaa" in df.columns:
         mask = df["ccaa"].isna() & df["nuts_code"].notna()
         df.loc[mask, "ccaa"] = df.loc[mask, "nuts_code"].apply(nuts_to_ccaa)

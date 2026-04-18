@@ -97,7 +97,7 @@ CPV_NAMES: dict[str, str] = {
 
 
 def cpv_label(code: str | None) -> str:
-    if not code:
+    if not code or not isinstance(code, str):
         return "—"
     code = code.strip()
     if code in CPV_NAMES:
