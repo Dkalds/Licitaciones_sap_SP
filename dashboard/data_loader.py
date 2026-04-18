@@ -19,7 +19,10 @@ from dashboard.normalize import normalize_company, normalize_nif
 @st.cache_data(ttl=300, show_spinner="Cargando datos…")
 def load_dataframe() -> pd.DataFrame:
     with connect() as c:
-        df = pd.read_sql_query("SELECT * FROM licitaciones", c)
+        cursor = c.execute("SELECT * FROM licitaciones")
+        rows = cursor.fetchall()
+        cols = [d[0] for d in cursor.description]
+        df = pd.DataFrame(rows, columns=cols)
     if df.empty:
         return df
 
@@ -51,14 +54,16 @@ def load_dataframe() -> pd.DataFrame:
 @st.cache_data(ttl=300, show_spinner="Cargando adjudicaciones…")
 def load_adjudicaciones() -> pd.DataFrame:
     with connect() as c:
-        df = pd.read_sql_query(
+        cursor = c.execute(
             "SELECT a.*, l.titulo, l.organo_contratacion, l.url AS url_lic, "
             "       l.fecha_publicacion, l.descripcion AS descripcion_lic, "
             "       l.importe AS importe_licitacion "
             "FROM adjudicaciones a "
             "LEFT JOIN licitaciones l ON l.id_externo = a.licitacion_id",
-            c,
         )
+        rows = cursor.fetchall()
+        cols = [d[0] for d in cursor.description]
+        df = pd.DataFrame(rows, columns=cols)
     if df.empty:
         return df
 
@@ -103,8 +108,11 @@ def load_adjudicaciones() -> pd.DataFrame:
 @st.cache_data(ttl=300)
 def load_extracciones() -> pd.DataFrame:
     with connect() as c:
-        df = pd.read_sql_query(
-            "SELECT * FROM extracciones ORDER BY fecha DESC", c)
+        cursor = c.execute(
+            "SELECT * FROM extracciones ORDER BY fecha DESC")
+        rows = cursor.fetchall()
+        cols = [d[0] for d in cursor.description]
+        df = pd.DataFrame(rows, columns=cols)
     if not df.empty:
         df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
     return df
