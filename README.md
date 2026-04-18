@@ -117,10 +117,46 @@ para fines de análisis estadístico.
 - Los datos de meses muy recientes pueden tardar en publicarse
   (típicamente el ZIP del mes M aparece a mediados del mes M+1).
 
+## Despliegue (Streamlit Cloud + GitHub Actions)
+
+Setup recomendado, gratis y sin servidores:
+
+- **Dashboard** corriendo en [Streamlit Community Cloud](https://share.streamlit.io)
+- **Scraping diario** en GitHub Actions, que commitea la BD actualizada
+- Streamlit Cloud detecta el push y refresca
+
+### 1. Conectar el repo a Streamlit Cloud
+1. https://share.streamlit.io → "New app"
+2. Repo: `Dkalds/Licitaciones_SAP_DASHBOARD`, branch `master`
+3. Main file path: `dashboard/app.py`
+4. Deploy. Se instalará desde `requirements.txt` automáticamente.
+
+### 2. Cron diario en GitHub Actions
+Ya configurado en [`.github/workflows/scrape.yml`](.github/workflows/scrape.yml):
+- Diario a las 06:00 UTC
+- Lanza `python -m scheduler.run_update --months 3`
+- Hace `git commit + push` de `data/licitaciones.db` si ha cambiado
+
+Para que el workflow tenga permiso de push:
+1. Repo → Settings → Actions → General
+2. *Workflow permissions* → seleccionar **Read and write permissions**
+
+Lanzar manualmente: pestaña *Actions* → "Scrape PLACSP daily" → *Run workflow*.
+
+### Limitaciones de este setup
+- La BD vive en el repo (público) → cualquiera puede descargarla. Como
+  los datos ya son públicos en PLACSP no es problema legal, pero
+  conviene saberlo.
+- Si la BD supera ~50 MB, GitHub avisa; >100 MB rechaza el push.
+  Al ritmo SAP actual (~ +30 licitaciones/mes), tardarías años.
+- Cada commit del bot añade peso al historial git. Si crece mucho,
+  squash-merge anual o `git lfs` para el `.db`.
+
 ## Próximos pasos sugeridos
 
-- Migrar SQLite → Supabase Postgres (multi-usuario, dashboard remoto)
-- Desplegar dashboard en Streamlit Cloud (gratis)
-- Mover scheduler a GitHub Actions (cron en la nube, 24/7 sin PC)
+- Migrar SQLite → Supabase Postgres si crecéis a multi-usuario con
+  escritura concurrente.
 - Añadir alertas (email/Slack) cuando aparezca una licitación SAP
-  por encima de cierto importe
+  por encima de cierto importe.
+- Auth (Cloudflare Access / streamlit-authenticator) si pasa a uso
+  interno empresa.

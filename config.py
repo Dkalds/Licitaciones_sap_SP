@@ -1,10 +1,11 @@
 """Configuración global del proyecto."""
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-DATA_DIR = ROOT / "data"
+DATA_DIR = Path(os.environ.get("DATA_DIR", ROOT / "data"))
 DOWNLOADS_DIR = DATA_DIR / "downloads"
-DB_PATH = DATA_DIR / "licitaciones.db"
+DB_PATH = Path(os.environ.get("DB_PATH", DATA_DIR / "licitaciones.db"))
 
 DATA_DIR.mkdir(exist_ok=True)
 DOWNLOADS_DIR.mkdir(exist_ok=True)
