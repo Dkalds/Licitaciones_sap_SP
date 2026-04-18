@@ -12,6 +12,8 @@ import hmac
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import plotly.io as pio
 import streamlit as st
 
 from config import DASHBOARD_PASSWORD
@@ -29,36 +31,288 @@ st.set_page_config(
 
 CSS = """
 <style>
-  .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1400px; }
-  h1, h2, h3 { font-weight: 600; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg-0: #0A0E1A;
+    --bg-1: #111827;
+    --bg-2: rgba(30, 41, 59, 0.5);
+    --bg-3: rgba(30, 41, 59, 0.8);
+    --border: rgba(255, 255, 255, 0.06);
+    --border-hover: rgba(255, 255, 255, 0.14);
+    --text-primary: #F5F7FA;
+    --text-secondary: #97999B;  /* Deloitte Cool Grey 7 */
+    --text-muted: #6B6D6F;
+    --accent: #86BC25;          /* Deloitte Green 7 (signature) */
+    --accent-2: #046A38;        /* Deloitte Green 4 (dark) */
+    --accent-rgb: 134, 188, 37;
+    --success: #43B02A;         /* Deloitte Green 6 */
+    --warning: #F59E0B;
+    --danger: #DA291C;          /* Deloitte Red */
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+
+  html, body, [data-testid="stAppViewContainer"],
+  [data-testid="stMarkdownContainer"], .stMarkdown, .stText,
+  button, input, textarea, select {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont,
+                 'Segoe UI', system-ui, sans-serif !important;
+  }
+
+  [data-testid="stAppViewContainer"] { background: var(--bg-0); }
+  [data-testid="stHeader"] { background: transparent; }
+
+  .block-container {
+    padding-top: 2rem; padding-bottom: 3rem; max-width: 1400px;
+  }
+
+  h1, h2, h3, h4 {
+    font-weight: 600 !important;
+    letter-spacing: -0.02em !important;
+    color: var(--text-primary) !important;
+  }
+  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
+  h2 { font-size: 1.35rem !important; }
+  h3 { font-size: 1.1rem !important; }
+
+  /* ── Sidebar ────────────────────────────────────────────── */
+  section[data-testid="stSidebar"] {
+    background: var(--bg-1);
+    border-right: 1px solid var(--border);
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
+  }
+  section[data-testid="stSidebar"] > div:first-child { padding-top: 1.5rem; }
+
+  /* ── Header app ─────────────────────────────────────────── */
+  .app-header { margin-bottom: 1.5rem; }
+  .breadcrumb {
+    font-size: 0.8rem; color: var(--text-muted);
+    margin-bottom: 0.5rem; display: flex; gap: 8px; align-items: center;
+  }
+  .breadcrumb .crumb-dim { color: var(--text-muted); }
+  .breadcrumb .crumb-sep { color: var(--text-muted); opacity: 0.5; }
+  .breadcrumb .crumb-active { color: var(--text-secondary); font-weight: 500; }
+  .app-header h1 {
+    margin: 0 0 0.25rem 0 !important;
+    background: linear-gradient(135deg, var(--text-primary) 0%,
+                                         var(--text-secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .app-header .subtitle {
+    color: var(--text-secondary); font-size: 0.9rem; margin: 0;
+  }
+  .app-chip {
+    display: inline-block; font-size: 0.72rem;
+    color: var(--text-secondary);
+    background: var(--bg-2); padding: 3px 10px;
+    border: 1px solid var(--border); border-radius: 999px;
+    backdrop-filter: blur(8px);
+  }
+
+  /* ── KPI cards ──────────────────────────────────────────── */
   .kpi-card {
-    background: linear-gradient(135deg, #1A1F2C 0%, #1F2937 100%);
-    border: 1px solid rgba(0,180,216,0.15);
-    border-radius: 12px; padding: 18px 20px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    position: relative;
+    background: var(--bg-2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px 18px 22px;
+    overflow: hidden;
+    transition: border-color 0.15s ease;
   }
-  .kpi-card .label { color: #9CA3AF; font-size: 0.78rem;
-    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-  .kpi-card .value { color: #E8ECF1; font-size: 1.85rem;
-    font-weight: 700; line-height: 1.1; }
-  .kpi-card .delta { font-size: 0.85rem; margin-top: 4px; }
-  .kpi-card .delta.up { color: #10B981; }
-  .kpi-card .delta.down { color: #EF4444; }
-  .kpi-card .icon { font-size: 1.2rem; opacity: 0.6; float: right; }
+  .kpi-card:hover { border-color: var(--border-hover); }
+  .kpi-card::before {
+    content: ""; position: absolute; left: 0; top: 12px; bottom: 12px;
+    width: 3px; border-radius: 2px;
+    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-2) 100%);
+  }
+  .kpi-card .label {
+    color: var(--text-muted); font-size: 0.7rem;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin-bottom: 6px; font-weight: 500;
+  }
+  .kpi-card .value {
+    color: var(--text-primary); font-size: 1.75rem;
+    font-weight: 600; line-height: 1.1; letter-spacing: -0.02em;
+  }
+  .kpi-card .delta { font-size: 0.78rem; margin-top: 6px; font-weight: 500; }
+  .kpi-card .delta.up { color: var(--success); }
+  .kpi-card .delta.down { color: var(--danger); }
+
+  /* ── Top cards ──────────────────────────────────────────── */
   .top-card {
-    background: #1A1F2C; border-left: 4px solid #00B4D8;
-    border-radius: 8px; padding: 14px 18px; margin-bottom: 10px;
+    position: relative;
+    background: var(--bg-2);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px 14px 22px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s ease;
   }
-  .top-card .amount { font-size: 1.4rem; font-weight: 700; color: #00B4D8; }
-  .top-card .title { font-size: 0.95rem; color: #E8ECF1; margin: 4px 0; }
-  .top-card .meta { font-size: 0.78rem; color: #9CA3AF; }
-  div[data-testid="stMetricValue"] { font-size: 1.6rem; }
-  .stTabs [data-baseweb="tab-list"] { gap: 4px; }
+  .top-card:hover { border-color: var(--border-hover); }
+  .top-card::before {
+    content: ""; position: absolute; left: 0; top: 10px; bottom: 10px;
+    width: 3px; border-radius: 2px;
+    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-2) 100%);
+  }
+  .top-card .amount {
+    font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .top-card .title {
+    font-size: 0.92rem; color: var(--text-primary);
+    margin: 4px 0; font-weight: 500;
+  }
+  .top-card .meta {
+    font-size: 0.75rem; color: var(--text-secondary);
+  }
+
+  /* ── Tabs principales (pill-style) ──────────────────────── */
+  .stTabs [data-baseweb="tab-list"] {
+    gap: 6px; background: transparent; border-bottom: none;
+    margin-bottom: 1rem;
+  }
   .stTabs [data-baseweb="tab"] {
-    background-color: #1A1F2C; border-radius: 8px 8px 0 0;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     padding: 8px 18px;
+    color: var(--text-secondary);
+    font-weight: 500; font-size: 0.88rem;
+    transition: all 0.15s ease;
   }
-  .stTabs [aria-selected="true"] { background-color: #00B4D8 !important; color: white !important; }
+  .stTabs [data-baseweb="tab"]:hover {
+    border-color: var(--border-hover); color: var(--text-primary);
+  }
+  .stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, var(--accent) 0%,
+                                          var(--accent-2) 100%) !important;
+    color: white !important;
+    border-color: transparent !important;
+    box-shadow: 0 4px 14px rgba(134, 188, 37, 0.3);
+  }
+  .stTabs [data-baseweb="tab-panel"] { padding-top: 0.5rem; }
+
+  /* Sub-tabs (nested) ligeramente más discretos */
+  .stTabs .stTabs [data-baseweb="tab"] {
+    font-size: 0.82rem; padding: 6px 14px;
+  }
+  .stTabs .stTabs [aria-selected="true"] {
+    background: var(--bg-3) !important;
+    color: var(--text-primary) !important;
+    box-shadow: none;
+    border-color: var(--border-hover) !important;
+  }
+
+  /* ── Inputs / widgets ───────────────────────────────────── */
+  [data-baseweb="input"], [data-baseweb="select"] > div,
+  .stTextInput > div > div, .stNumberInput > div > div,
+  .stDateInput > div > div {
+    background: var(--bg-2) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+  }
+  [data-baseweb="input"]:focus-within,
+  [data-baseweb="select"] > div:focus-within,
+  .stTextInput > div > div:focus-within {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(134, 188, 37, 0.1) !important;
+  }
+  input, textarea { color: var(--text-primary) !important; }
+
+  /* Multiselect tags */
+  [data-baseweb="tag"] {
+    background: rgba(134, 188, 37, 0.15) !important;
+    border: 1px solid rgba(134, 188, 37, 0.3) !important;
+    color: var(--text-primary) !important;
+  }
+
+  /* ── Botones ────────────────────────────────────────────── */
+  .stButton > button, .stDownloadButton > button {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: var(--radius);
+    font-weight: 500; font-size: 0.85rem;
+    transition: all 0.15s ease;
+  }
+  .stButton > button:hover, .stDownloadButton > button:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-3);
+    transform: none;
+  }
+  .stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, var(--accent) 0%,
+                                          var(--accent-2) 100%);
+    border: none; color: white;
+    box-shadow: 0 4px 14px rgba(134, 188, 37, 0.25);
+  }
+  .stButton > button[kind="primary"]:hover {
+    box-shadow: 0 6px 20px rgba(134, 188, 37, 0.4);
+  }
+
+  /* ── Dataframes ─────────────────────────────────────────── */
+  div[data-testid="stDataFrame"] {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  /* ── Expanders ──────────────────────────────────────────── */
+  .streamlit-expanderHeader, [data-testid="stExpander"] summary {
+    background: var(--bg-2) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    font-weight: 500;
+  }
+  [data-testid="stExpander"] { border: none !important; }
+
+  /* ── Metric (nativo Streamlit) ──────────────────────────── */
+  div[data-testid="stMetricValue"] {
+    font-size: 1.5rem !important; font-weight: 600 !important;
+    letter-spacing: -0.02em !important;
+  }
+  div[data-testid="stMetricLabel"] {
+    color: var(--text-muted) !important;
+    font-size: 0.75rem !important; text-transform: uppercase;
+    letter-spacing: 0.05em !important;
+  }
+
+  /* ── Divider ────────────────────────────────────────────── */
+  hr { border-color: var(--border) !important; opacity: 0.5; }
+
+  /* ── Caption / subtítulos ───────────────────────────────── */
+  .stCaption, [data-testid="stCaptionContainer"] {
+    color: var(--text-muted) !important;
+  }
+
+  /* ── Login card ─────────────────────────────────────────── */
+  .login-card {
+    max-width: 380px; margin: 3rem auto;
+    background: var(--bg-2); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 2rem;
+  }
+
+  /* ── Scrollbar ──────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-hover); border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -81,21 +335,70 @@ def _check_password() -> bool:
     if st.session_state.get("authenticated"):
         return True
 
-    st.markdown("### 🔒 Acceso restringido")
-    pwd = st.text_input("Contraseña", type="password", key="login_pwd")
-    if st.button("Entrar", type="primary"):
+    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    st.markdown("### Acceso restringido")
+    st.caption("Introduce la contraseña para acceder al dashboard.")
+    pwd = st.text_input("Contraseña", type="password", key="login_pwd",
+                        label_visibility="collapsed",
+                        placeholder="Contraseña")
+    if st.button("Entrar", type="primary", use_container_width=True):
         if hmac.compare_digest(pwd, password):
             st.session_state["authenticated"] = True
             st.rerun()
         else:
             st.error("Contraseña incorrecta.")
+    st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 
 _check_password()
 
-PLOTLY_TEMPLATE = "plotly_dark"
-COLOR_SEQUENCE = px.colors.qualitative.Vivid
+# ── Paleta corporativa Deloitte ─────────────────────────────────────────
+# Referencia: Deloitte Brand Guidelines (Green 7 signature + Cool Greys
+# + complementos corporativos Blue / Teal).
+COLORWAY = [
+    "#86BC25",  # Deloitte Green 7 (signature)
+    "#046A38",  # Deloitte Green 4 (dark)
+    "#43B02A",  # Deloitte Green 6
+    "#0076A8",  # Deloitte Blue 4
+    "#62B5E5",  # Deloitte Blue 7
+    "#00ABAB",  # Deloitte Teal
+    "#97999B",  # Deloitte Cool Grey 7
+    "#012169",  # Deloitte Navy
+]
+
+pio.templates["premium"] = go.layout.Template(
+    layout=go.Layout(
+        font=dict(family="Inter, -apple-system, system-ui, sans-serif",
+                  color="#E8ECF1", size=12),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(showgrid=False, zeroline=False, showline=False,
+                   tickcolor="rgba(255,255,255,0.08)",
+                   tickfont=dict(color="#97999B", size=11)),
+        yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+                   zeroline=False, showline=False,
+                   tickfont=dict(color="#97999B", size=11)),
+        colorway=COLORWAY,
+        hoverlabel=dict(bgcolor="#111827",
+                        bordercolor="rgba(255,255,255,0.1)",
+                        font=dict(family="Inter", color="#F5F7FA")),
+        legend=dict(bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#97999B", size=11)),
+    )
+)
+pio.templates.default = "premium"
+
+PLOTLY_TEMPLATE = "premium"
+# Escalas secuenciales corporativas (usadas en heatmaps / mapas de calor).
+# GREEN_SCALE es la primaria (verde Deloitte); BLUE_SCALE para charts que
+# necesitan un segundo canal visual sin colisionar con la primaria.
+GREEN_SCALE = [[0.0, "#0B2E13"], [0.5, "#86BC25"], [1.0, "#E4F5C1"]]
+BLUE_SCALE = [[0.0, "#002A44"], [0.5, "#0076A8"], [1.0, "#C7E6F5"]]
+# Aliases para compatibilidad con el código que ya referenciaba INDIGO/PURPLE
+INDIGO_SCALE = GREEN_SCALE
+PURPLE_SCALE = BLUE_SCALE
+COLOR_SEQUENCE = COLORWAY
 
 # ── Helpers ─────────────────────────────────────────────────────────────
 def fmt_eur(x: float | None) -> str:
@@ -112,12 +415,13 @@ def fmt_eur(x: float | None) -> str:
 
 def kpi_card(label: str, value: str, delta: str | None = None,
              delta_up: bool = True, icon: str = "") -> str:
+    del icon  # icono visual lo aporta la barrita CSS del card
     delta_html = ""
     if delta:
         cls = "up" if delta_up else "down"
-        arrow = "▲" if delta_up else "▼"
+        arrow = "↑" if delta_up else "↓"
         delta_html = f'<div class="delta {cls}">{arrow} {delta}</div>'
-    return (f'<div class="kpi-card"><span class="icon">{icon}</span>'
+    return (f'<div class="kpi-card">'
             f'<div class="label">{label}</div>'
             f'<div class="value">{value}</div>{delta_html}</div>')
 
@@ -144,17 +448,29 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
 
 
 # ── Header ──────────────────────────────────────────────────────────────
-col_t, col_r = st.columns([6, 2])
+df_full = load_dataframe()
+
+col_t, col_r = st.columns([7, 1])
 with col_t:
-    st.markdown("# 📊 Licitaciones SAP · Sector Público España")
-    st.caption("Plataforma de Contratación del Sector Público — "
-               "reutilización al amparo de la Ley 37/2007")
+    st.markdown(
+        '<div class="app-header">'
+        '<div class="breadcrumb">'
+        '<span class="crumb-dim">Dashboard</span>'
+        '<span class="crumb-sep">/</span>'
+        '<span class="crumb-active">Licitaciones SAP</span>'
+        '</div>'
+        '<h1>Licitaciones SAP · Sector Público</h1>'
+        '<p class="subtitle">Plataforma de Contratación del Sector Público '
+        '— reutilización al amparo de la Ley 37/2007</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 with col_r:
-    if st.button("🔄 Refrescar caché", use_container_width=True):
+    st.markdown('<div style="height: 1.2rem"></div>', unsafe_allow_html=True)
+    if st.button("↻", help="Refrescar caché de datos",
+                 use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-
-df_full = load_dataframe()
 
 if df_full.empty:
     st.warning("No hay datos en la BD. Ejecuta:")
@@ -163,10 +479,11 @@ if df_full.empty:
 
 # ── Sidebar: filtros ────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 🎛️ Filtros")
+    st.markdown("### Filtros")
 
     # Búsqueda libre
-    q = st.text_input("🔍 Buscar (título / descripción)", "")
+    q = st.text_input("Buscar (título / descripción)", "",
+                      placeholder="Escribe para filtrar…")
 
     # Rango fechas
     fmin = df_full["fecha_publicacion"].min()
@@ -261,12 +578,18 @@ with c5:
 st.markdown("")  # espaciado
 
 # ── Tabs ─────────────────────────────────────────────────────────────────
-(tab_resumen, tab_tendencias, tab_org, tab_geo,
- tab_proyectos, tab_adjudicatarios, tab_prevision,
- tab_detalle) = st.tabs(
-    ["📌 Resumen", "📈 Tendencias", "🏛️ Órganos", "🗺️ Geografía",
-     "🧩 Proyectos & módulos", "💼 Adjudicatarios",
-     "📅 Previsión", "📋 Detalle"])
+tab_overview, tab_mercado, tab_analisis, tab_accion = st.tabs([
+    "Overview", "Mercado", "Análisis", "Acción"])
+
+with tab_overview:
+    tab_resumen, tab_tendencias = st.tabs(["Resumen", "Tendencias"])
+with tab_mercado:
+    tab_org, tab_geo = st.tabs(["Órganos", "Geografía"])
+with tab_analisis:
+    tab_proyectos, tab_adjudicatarios = st.tabs(
+        ["Proyectos & módulos", "Adjudicatarios"])
+with tab_accion:
+    tab_prevision, tab_detalle = st.tabs(["Previsión", "Detalle"])
 
 # ─── Tab Resumen ────────────────────────────────────────────────────────
 with tab_resumen:
@@ -315,7 +638,7 @@ with tab_resumen:
         if not tp.empty:
             fig = px.bar(tp, x="n", y="tipo_proyecto", orientation="h",
                           template=PLOTLY_TEMPLATE,
-                          color="n", color_continuous_scale="Teal",
+                          color="n", color_continuous_scale=INDIGO_SCALE,
                           labels={"n": "", "tipo_proyecto": ""})
             fig.update_layout(height=300, showlegend=False,
                                coloraxis_showscale=False,
@@ -338,14 +661,14 @@ with tab_tendencias:
         with c1:
             fig = px.bar(g, x="mes", y="n", template=PLOTLY_TEMPLATE,
                           labels={"mes": "Mes", "n": "Nº licitaciones"},
-                          color_discrete_sequence=["#00B4D8"])
+                          color_discrete_sequence=["#86BC25"])
             fig.update_layout(height=380,
                                margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
         with c2:
             fig = px.area(g, x="mes", y="importe", template=PLOTLY_TEMPLATE,
                            labels={"mes": "Mes", "importe": "Importe (€)"},
-                           color_discrete_sequence=["#10B981"])
+                           color_discrete_sequence=["#046A38"])
             fig.update_layout(height=380,
                                margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
@@ -360,7 +683,7 @@ with tab_tendencias:
         pivot = hm.pivot(index="estado", columns="mes",
                           values="n").fillna(0)
         fig = px.imshow(pivot, aspect="auto", template=PLOTLY_TEMPLATE,
-                         color_continuous_scale="Teal",
+                         color_continuous_scale=INDIGO_SCALE,
                          labels=dict(color="Licitaciones"))
         fig.update_layout(height=350,
                            margin=dict(t=20, b=10, l=10, r=10))
@@ -371,10 +694,11 @@ with tab_tendencias:
         fig = px.histogram(
             df.dropna(subset=["importe"]).assign(
                 importe_log=lambda x: x["importe"].clip(lower=1)),
-            x="importe_log", log_x=True, nbins=40,
+            x="importe_log", nbins=40,
             template=PLOTLY_TEMPLATE,
-            color_discrete_sequence=["#00B4D8"],
+            color_discrete_sequence=["#86BC25"],
             labels={"importe_log": "Importe (€, log)"})
+        fig.update_xaxes(type="log")
         fig.update_layout(height=320,
                            margin=dict(t=20, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
@@ -395,7 +719,7 @@ with tab_org:
                           y="organo_contratacion", orientation="h",
                           template=PLOTLY_TEMPLATE,
                           color="importe",
-                          color_continuous_scale="Tealgrn",
+                          color_continuous_scale=INDIGO_SCALE,
                           labels={"n": "Licitaciones",
                                   "organo_contratacion": "",
                                   "importe": "Importe €"})
@@ -415,7 +739,7 @@ with tab_org:
             fig = px.bar(top_e.sort_values("importe"), x="importe",
                           y="organo_contratacion", orientation="h",
                           template=PLOTLY_TEMPLATE,
-                          color="n", color_continuous_scale="Pubu",
+                          color="n", color_continuous_scale=PURPLE_SCALE,
                           labels={"importe": "Importe €",
                                   "organo_contratacion": "",
                                   "n": "Licitaciones"})
@@ -430,7 +754,7 @@ with tab_org:
         fig = px.treemap(
             tm, path=["organo_short", "tipo_proyecto"],
             values="importe", template=PLOTLY_TEMPLATE,
-            color="importe", color_continuous_scale="Teal")
+            color="importe", color_continuous_scale=INDIGO_SCALE)
         fig.update_layout(height=600,
                            margin=dict(t=20, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
@@ -449,7 +773,7 @@ with tab_geo:
         if not geo.empty:
             fig = px.bar(geo.sort_values("n"), x="n", y="ccaa",
                           orientation="h", template=PLOTLY_TEMPLATE,
-                          color="importe", color_continuous_scale="Teal",
+                          color="importe", color_continuous_scale=INDIGO_SCALE,
                           labels={"n": "Licitaciones", "ccaa": "",
                                   "importe": "Importe €"})
             fig.update_layout(height=600,
@@ -496,7 +820,7 @@ with tab_proyectos:
                           x="n", y="modulos", orientation="h",
                           template=PLOTLY_TEMPLATE,
                           color="importe",
-                          color_continuous_scale="Aggrnyl",
+                          color_continuous_scale=INDIGO_SCALE,
                           labels={"n": "Apariciones", "modulos": "",
                                   "importe": "Importe €"})
             fig.update_layout(height=520,
@@ -510,7 +834,7 @@ with tab_proyectos:
         if not cross.empty:
             fig = px.sunburst(cross, path=["tipo_proyecto", "estado_desc"],
                                 values="n", template=PLOTLY_TEMPLATE,
-                                color="n", color_continuous_scale="Teal")
+                                color="n", color_continuous_scale=INDIGO_SCALE)
             fig.update_layout(height=520,
                                 margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
@@ -612,7 +936,7 @@ with tab_adjudicatarios:
                 fig = px.bar(top_imp.sort_values("importe"),
                               x="importe", y="nombre", orientation="h",
                               template=PLOTLY_TEMPLATE,
-                              color="n", color_continuous_scale="Aggrnyl",
+                              color="n", color_continuous_scale=INDIGO_SCALE,
                               labels={"importe": "Importe €",
                                       "nombre": "",
                                       "n": "Nº contratos"},
@@ -634,7 +958,7 @@ with tab_adjudicatarios:
                               x="n", y="nombre", orientation="h",
                               template=PLOTLY_TEMPLATE,
                               color="importe",
-                              color_continuous_scale="Pubu",
+                              color_continuous_scale=PURPLE_SCALE,
                               labels={"n": "Nº contratos", "nombre": "",
                                       "importe": "Importe €"},
                               hover_data=["importe"])
@@ -656,7 +980,7 @@ with tab_adjudicatarios:
                           .reset_index())
                 fig = px.pie(gr, names="categoria", values="importe",
                               hole=0.55, template=PLOTLY_TEMPLATE,
-                              color_discrete_sequence=["#10B981", "#F59E0B"])
+                              color_discrete_sequence=["#86BC25", "#97999B"])
                 fig.update_traces(textinfo="label+percent")
                 fig.update_layout(height=320,
                                    margin=dict(t=10, b=10, l=10, r=10),
@@ -677,7 +1001,7 @@ with tab_adjudicatarios:
                                         "importe_pct": cum_pct})
                 fig = px.area(pareto, x="empresas_pct", y="importe_pct",
                                template=PLOTLY_TEMPLATE,
-                               color_discrete_sequence=["#00B4D8"],
+                               color_discrete_sequence=["#86BC25"],
                                labels={"empresas_pct": "% empresas",
                                        "importe_pct": "% importe acumulado"})
                 fig.update_layout(height=320,
@@ -696,7 +1020,7 @@ with tab_adjudicatarios:
                 fig = px.histogram(
                     ofertas, x="n_ofertas_recibidas",
                     nbins=20, template=PLOTLY_TEMPLATE,
-                    color_discrete_sequence=["#00B4D8"],
+                    color_discrete_sequence=["#86BC25"],
                     labels={"n_ofertas_recibidas": "Ofertas por concurso"})
                 fig.update_layout(height=320,
                                    margin=dict(t=10, b=10, l=10, r=10))
@@ -719,7 +1043,7 @@ with tab_adjudicatarios:
                           x="importe", y="ccaa", orientation="h",
                           template=PLOTLY_TEMPLATE,
                           color="empresas",
-                          color_continuous_scale="Teal",
+                          color_continuous_scale=INDIGO_SCALE,
                           labels={"importe": "Importe adjudicado €",
                                   "ccaa": "",
                                   "empresas": "Empresas únicas"},
@@ -730,7 +1054,7 @@ with tab_adjudicatarios:
 
         # ── Métricas comparativas por empresa ──
         st.divider()
-        st.subheader("📊 Métricas comparativas por empresa")
+        st.subheader("Métricas comparativas por empresa")
         st.caption("Para estudiar rentabilidad y perfil competitivo. "
                     "Solo empresas con al menos 2 adjudicaciones.")
 
@@ -855,7 +1179,7 @@ with tab_adjudicatarios:
 
         # ── Tabla buscable + drill-down por empresa ──
         st.divider()
-        st.subheader("🔍 Buscador de empresas")
+        st.subheader("Buscador de empresas")
         empresa_q = st.text_input(
             "Filtrar por nombre o NIF",
             placeholder="Ej: TELEFONICA, INDRA, B12345678...",
@@ -900,7 +1224,7 @@ with tab_adjudicatarios:
 
         # ── Drill-down: seleccionar varias empresas para comparar ──
         st.divider()
-        st.subheader("🔬 Drill-down por empresa(s)")
+        st.subheader("Drill-down por empresa(s)")
         opciones_df = ranking[["nombre", "empresa_key"]].head(200)
         opciones = opciones_df["nombre"].tolist()
         empresas_sel = st.multiselect(
@@ -987,7 +1311,7 @@ with tab_adjudicatarios:
                                   x="importe", y="nombre", orientation="h",
                                   template=PLOTLY_TEMPLATE,
                                   color="contratos",
-                                  color_continuous_scale="Aggrnyl",
+                                  color_continuous_scale=INDIGO_SCALE,
                                   labels={"importe": "Importe €",
                                           "nombre": "",
                                           "contratos": "Contratos"})
@@ -1067,7 +1391,7 @@ with tab_adjudicatarios:
 
 # ─── Tab Previsión ──────────────────────────────────────────────────────
 with tab_prevision:
-    st.subheader("📅 Previsión de re-licitaciones de mantenimiento")
+    st.subheader("Previsión de re-licitaciones de mantenimiento")
     st.caption("Estimación de cuándo saldrán nuevos contratos de "
                "mantenimiento a partir de la finalización de los actuales. "
                "Solo se consideran proyectos clasificados como "
@@ -1142,7 +1466,7 @@ with tab_prevision:
                 fig = px.bar(ef, x="estado_forecast", y="n",
                               template=PLOTLY_TEMPLATE,
                               color="importe",
-                              color_continuous_scale="Sunsetdark",
+                              color_continuous_scale=PURPLE_SCALE,
                               labels={"estado_forecast": "",
                                       "n": "Contratos",
                                       "importe": "Importe €"})
@@ -1162,7 +1486,7 @@ with tab_prevision:
                           .reset_index())
                 fig = px.bar(qg, x="trimestre", y="importe",
                               template=PLOTLY_TEMPLATE,
-                              color_discrete_sequence=["#00B4D8"],
+                              color_discrete_sequence=["#86BC25"],
                               labels={"trimestre": "",
                                       "importe": "Importe que vence (€)"},
                               hover_data=["n"])
@@ -1180,7 +1504,7 @@ with tab_prevision:
             fig = px.timeline(
                 tl, x_start="inicio_efectivo", x_end="fecha_fin_estimada",
                 y="label", color="importe",
-                color_continuous_scale="Teal",
+                color_continuous_scale=INDIGO_SCALE,
                 template=PLOTLY_TEMPLATE,
                 hover_data={"organo_contratacion": True,
                              "importe": ":,.0f",
@@ -1189,11 +1513,11 @@ with tab_prevision:
             fig.add_shape(
                 type="line", x0=hoy.isoformat(), x1=hoy.isoformat(),
                 y0=0, y1=1, yref="paper",
-                line=dict(color="#EF4444", dash="dash"))
+                line=dict(color="#DA291C", dash="dash"))
             fig.add_annotation(
                 x=hoy.isoformat(), y=1, yref="paper",
                 text="Hoy", showarrow=False,
-                font=dict(color="#EF4444"), yanchor="bottom")
+                font=dict(color="#DA291C"), yanchor="bottom")
             fig.update_yaxes(autorange="reversed")
             fig.update_layout(height=600,
                                margin=dict(t=20, b=10, l=10, r=10),
@@ -1255,7 +1579,7 @@ with tab_detalle:
     cdl1, cdl2 = st.columns([1, 6])
     with cdl1:
         st.download_button(
-            "⬇️ Excel",
+            "Descargar Excel",
             data=to_excel_bytes(df),
             file_name="licitaciones_sap.xlsx",
             mime="application/vnd.openxmlformats-officedocument."
@@ -1264,7 +1588,7 @@ with tab_detalle:
         )
     with cdl2:
         st.download_button(
-            "⬇️ CSV",
+            "Descargar CSV",
             data=df.drop(columns=["modulos"]).to_csv(index=False)
                    .encode("utf-8-sig"),
             file_name="licitaciones_sap.csv", mime="text/csv",
