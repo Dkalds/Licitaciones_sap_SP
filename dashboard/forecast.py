@@ -38,11 +38,13 @@ def estimate_end_date(start: pd.Timestamp | None,
 
 def build_forecast_df(licitaciones: pd.DataFrame,
                        adjudicaciones: pd.DataFrame,
-                       meses_anticipacion: int = 6) -> pd.DataFrame:
+                       meses_anticipacion: int = 6,
+                       solo_mantenimiento: bool = True) -> pd.DataFrame:
     """Construye un dataframe con las previsiones de re-licitación.
 
     Lógica:
-      - Solo proyectos de tipo 'Mantenimiento' (más predecibles).
+      - Por defecto solo proyectos de tipo 'Mantenimiento' (más predecibles).
+        Con solo_mantenimiento=False analiza todos los tipos.
       - fecha_inicio = fecha_adjudicacion (de la primera adj asociada),
         o fecha_publicacion como fallback.
       - duracion_meses = parseado desde duracion_valor + unidad.
@@ -53,7 +55,8 @@ def build_forecast_df(licitaciones: pd.DataFrame,
         return pd.DataFrame()
 
     df = licitaciones.copy()
-    df = df[df["tipo_proyecto"] == "Mantenimiento"]
+    if solo_mantenimiento:
+        df = df[df["tipo_proyecto"] == "Mantenimiento"]
     if df.empty:
         return df
 

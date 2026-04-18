@@ -26,24 +26,25 @@ DOWNLOADS_DIR.mkdir(exist_ok=True)
 
 # Palabras clave para filtrar licitaciones SAP
 SAP_KEYWORDS = [
+    # Plataforma principal
     "sap",
     "s/4hana",
     "s4hana",
+    "s/4 hana",
     "hana",
     "abap",
     "fiori",
-    "successfactors",
-    "ariba",
-    "concur",
-    "netweaver",
-    "bw/4hana",
+    # Módulos funcionales
     "sap erp",
+    "sap ecc",
     "sap basis",
     "sap mm",
     "sap fi",
+    "sap fi/co",
     "sap co",
     "sap sd",
     "sap hcm",
+    "sap hr",
     "sap pi",
     "sap po",
     "sap pm",
@@ -52,13 +53,65 @@ SAP_KEYWORDS = [
     "sap wm",
     "sap ewm",
     "sap tm",
-    "SAP SSM",
     "sap srm",
     "sap crm",
+    "sap ssm",
     "sap bi",
     "sap bo",
+    "sap bw",
+    "sap bpc",
+    "sap grc",
+    "sap mdg",
+    "sap mdm",
+    "sap isu",
+    "sap is-u",
+    "sap re-fx",
+    "sap refx",
+    "sap re/fx",
+    "sap apo",
+    "sap scm",
+    "sap ibp",
+    "sap slm",
+    "sap clm",
+    "sap ariba",
+    "sap fieldglass",
+    "sap concur",
+    "sap analytics cloud",
+    "sac sap",
+    # Suite cloud
+    "successfactors",
+    "ariba",
+    "concur",
+    "fieldglass",
+    "sap cx",
+    "sap customer experience",
+    # Infraestructura / tecnología
+    "netweaver",
+    "bw/4hana",
+    "bw4hana",
     "sap solution manager",
+    "solman",
     "businessobjects",
+    "business objects",
+    "crystal reports",
+    "sap oss",
+    "sap early watch",
+    "sap lumira",
+    "sap build",
+    "sap integration suite",
+    "sap btp",
+    "business technology platform",
+    "sap cloud platform",
+    # Términos genéricos asociados
+    "implantación sap",
+    "migración sap",
+    "mantenimiento sap",
+    "soporte sap",
+    "consultoría sap",
+    "formación sap",
+    "licencias sap",
+    "upgrade sap",
+    "actualización sap",
 ]
 
 # CPV codes relevantes (servicios TI / software)
@@ -77,10 +130,7 @@ PLACE_SEARCH_URL = (
 )
 
 # User agent identificable (buena práctica scraping ético)
-USER_AGENT = (
-    "LicitacionesSAP-Bot/1.0 "
-    "(uso: análisis estadístico, datos abiertos Ley 37/2007)"
-)
+USER_AGENT = "LicitacionesSAP-Bot/1.0"
 
 REQUEST_TIMEOUT = 30
 REQUEST_DELAY_SECONDS = 1.5  # delay entre requests para no saturar

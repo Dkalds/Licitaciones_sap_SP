@@ -31,288 +31,75 @@ st.set_page_config(
 
 CSS = """
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-  :root {
-    --bg-0: #0A0E1A;
-    --bg-1: #111827;
-    --bg-2: rgba(30, 41, 59, 0.5);
-    --bg-3: rgba(30, 41, 59, 0.8);
-    --border: rgba(255, 255, 255, 0.06);
-    --border-hover: rgba(255, 255, 255, 0.14);
-    --text-primary: #F5F7FA;
-    --text-secondary: #97999B;  /* Deloitte Cool Grey 7 */
-    --text-muted: #6B6D6F;
-    --accent: #86BC25;          /* Deloitte Green 7 (signature) */
-    --accent-2: #046A38;        /* Deloitte Green 4 (dark) */
-    --accent-rgb: 134, 188, 37;
-    --success: #43B02A;         /* Deloitte Green 6 */
-    --warning: #F59E0B;
-    --danger: #DA291C;          /* Deloitte Red */
-    --radius: 10px;
-    --radius-lg: 14px;
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  html, body, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
   }
-
-  html, body, [data-testid="stAppViewContainer"],
-  [data-testid="stMarkdownContainer"], .stMarkdown, .stText,
-  button, input, textarea, select {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont,
-                 'Segoe UI', system-ui, sans-serif !important;
-  }
-
-  [data-testid="stAppViewContainer"] { background: var(--bg-0); }
-  [data-testid="stHeader"] { background: transparent; }
-
-  .block-container {
-    padding-top: 2rem; padding-bottom: 3rem; max-width: 1400px;
-  }
-
+  .block-container { padding-top: 3.5rem; padding-bottom: 2rem; max-width: 1440px; }
   h1, h2, h3, h4 {
-    font-weight: 600 !important;
-    letter-spacing: -0.02em !important;
-    color: var(--text-primary) !important;
+    font-weight: 600 !important; letter-spacing: -0.025em;
+    font-family: 'Inter', sans-serif !important;
+    color: #E8E8E8 !important;
   }
-  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
-  h2 { font-size: 1.35rem !important; }
-  h3 { font-size: 1.1rem !important; }
+  h1 { font-size: 1.35rem !important; }
+  h2 { font-size: 1.1rem !important; color: #B0B0B0 !important; }
 
-  /* ── Sidebar ────────────────────────────────────────────── */
+  /* Sidebar */
   section[data-testid="stSidebar"] {
-    background: var(--bg-1);
-    border-right: 1px solid var(--border);
-    width: 280px !important;
-    min-width: 280px !important;
-    max-width: 280px !important;
+    width: 260px !important; min-width: 260px !important; max-width: 260px !important;
+    background: linear-gradient(180deg, #0D0D0D 0%, #111111 100%) !important;
+    border-right: 1px solid rgba(255,255,255,0.06) !important;
   }
-  section[data-testid="stSidebar"] > div:first-child { padding-top: 1.5rem; }
+  section[data-testid="stSidebar"] > div { padding-top: 1.5rem; }
 
-  /* ── Header app ─────────────────────────────────────────── */
-  .app-header { margin-bottom: 1.5rem; }
-  .breadcrumb {
-    font-size: 0.8rem; color: var(--text-muted);
-    margin-bottom: 0.5rem; display: flex; gap: 8px; align-items: center;
-  }
-  .breadcrumb .crumb-dim { color: var(--text-muted); }
-  .breadcrumb .crumb-sep { color: var(--text-muted); opacity: 0.5; }
-  .breadcrumb .crumb-active { color: var(--text-secondary); font-weight: 500; }
-  .app-header h1 {
-    margin: 0 0 0.25rem 0 !important;
-    background: linear-gradient(135deg, var(--text-primary) 0%,
-                                         var(--text-secondary) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  .app-header .subtitle {
-    color: var(--text-secondary); font-size: 0.9rem; margin: 0;
-  }
-  .app-chip {
-    display: inline-block; font-size: 0.72rem;
-    color: var(--text-secondary);
-    background: var(--bg-2); padding: 3px 10px;
-    border: 1px solid var(--border); border-radius: 999px;
-    backdrop-filter: blur(8px);
-  }
-
-  /* ── KPI cards ──────────────────────────────────────────── */
+  /* KPI Cards — dark corporate */
   .kpi-card {
-    position: relative;
-    background: var(--bg-2);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 18px 20px 18px 22px;
-    overflow: hidden;
-    transition: border-color 0.15s ease;
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px; padding: 18px 22px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    transition: border-color 0.2s, transform 0.15s;
   }
-  .kpi-card:hover { border-color: var(--border-hover); }
-  .kpi-card::before {
-    content: ""; position: absolute; left: 0; top: 12px; bottom: 12px;
-    width: 3px; border-radius: 2px;
-    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-2) 100%);
-  }
+  .kpi-card:hover { border-color: #86BC25; transform: translateY(-1px); }
   .kpi-card .label {
-    color: var(--text-muted); font-size: 0.7rem;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    margin-bottom: 6px; font-weight: 500;
+    color: #808080; font-size: 0.7rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px;
   }
   .kpi-card .value {
-    color: var(--text-primary); font-size: 1.75rem;
-    font-weight: 600; line-height: 1.1; letter-spacing: -0.02em;
+    color: #F0F0F0; font-size: 1.7rem; font-weight: 700;
+    line-height: 1.1; letter-spacing: -0.02em;
   }
-  .kpi-card .delta { font-size: 0.78rem; margin-top: 6px; font-weight: 500; }
-  .kpi-card .delta.up { color: var(--success); }
-  .kpi-card .delta.down { color: var(--danger); }
+  .kpi-card .delta { font-size: 0.76rem; margin-top: 6px; font-weight: 500; }
+  .kpi-card .delta.up { color: #86BC25; }
+  .kpi-card .delta.down { color: #E21836; }
+  .kpi-card .icon { font-size: 1rem; opacity: 0.35; float: right; }
 
-  /* ── Top cards ──────────────────────────────────────────── */
+  /* Top cards */
   .top-card {
-    position: relative;
-    background: var(--bg-2);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 18px 14px 22px;
-    margin-bottom: 10px;
-    overflow: hidden;
-    transition: border-color 0.15s ease;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-left: 3px solid #86BC25;
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 8px;
+    transition: border-color 0.15s;
   }
-  .top-card:hover { border-color: var(--border-hover); }
-  .top-card::before {
-    content: ""; position: absolute; left: 0; top: 10px; bottom: 10px;
-    width: 3px; border-radius: 2px;
-    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-2) 100%);
-  }
-  .top-card .amount {
-    font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em;
-    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  .top-card .title {
-    font-size: 0.92rem; color: var(--text-primary);
-    margin: 4px 0; font-weight: 500;
-  }
-  .top-card .meta {
-    font-size: 0.75rem; color: var(--text-secondary);
-  }
+  .top-card:hover { border-color: rgba(255,255,255,0.12); border-left-color: #6B9B1E; }
+  .top-card .amount { font-size: 1.25rem; font-weight: 700; color: #86BC25; letter-spacing: -0.01em; }
+  .top-card .title { font-size: 0.88rem; color: #E0E0E0; margin: 4px 0; line-height: 1.35; }
+  .top-card .meta { font-size: 0.74rem; color: #808080; }
 
-  /* ── Tabs principales (pill-style) ──────────────────────── */
-  .stTabs [data-baseweb="tab-list"] {
-    gap: 6px; background: transparent; border-bottom: none;
-    margin-bottom: 1rem;
-  }
-  .stTabs [data-baseweb="tab"] {
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 8px 18px;
-    color: var(--text-secondary);
-    font-weight: 500; font-size: 0.88rem;
-    transition: all 0.15s ease;
-  }
-  .stTabs [data-baseweb="tab"]:hover {
-    border-color: var(--border-hover); color: var(--text-primary);
-  }
-  .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, var(--accent) 0%,
-                                          var(--accent-2) 100%) !important;
-    color: white !important;
-    border-color: transparent !important;
-    box-shadow: 0 4px 14px rgba(134, 188, 37, 0.3);
-  }
-  .stTabs [data-baseweb="tab-panel"] { padding-top: 0.5rem; }
+  /* Breadcrumb */
+  .bc { font-size: 0.8rem; margin-bottom: 2px; }
+  .bc-section { color: #808080; font-weight: 500; }
+  .bc-sep { color: #555555; margin: 0 4px; }
+  .bc-page { color: #86BC25; font-weight: 500; }
 
-  /* Sub-tabs (nested) ligeramente más discretos */
-  .stTabs .stTabs [data-baseweb="tab"] {
-    font-size: 0.82rem; padding: 6px 14px;
-  }
-  .stTabs .stTabs [aria-selected="true"] {
-    background: var(--bg-3) !important;
-    color: var(--text-primary) !important;
-    box-shadow: none;
-    border-color: var(--border-hover) !important;
-  }
-
-  /* ── Inputs / widgets ───────────────────────────────────── */
-  [data-baseweb="input"], [data-baseweb="select"] > div,
-  .stTextInput > div > div, .stNumberInput > div > div,
-  .stDateInput > div > div {
-    background: var(--bg-2) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: var(--radius) !important;
-  }
-  [data-baseweb="input"]:focus-within,
-  [data-baseweb="select"] > div:focus-within,
-  .stTextInput > div > div:focus-within {
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(134, 188, 37, 0.1) !important;
-  }
-  input, textarea { color: var(--text-primary) !important; }
-
-  /* Multiselect tags */
-  [data-baseweb="tag"] {
-    background: rgba(134, 188, 37, 0.15) !important;
-    border: 1px solid rgba(134, 188, 37, 0.3) !important;
-    color: var(--text-primary) !important;
-  }
-
-  /* ── Botones ────────────────────────────────────────────── */
-  .stButton > button, .stDownloadButton > button {
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    border-radius: var(--radius);
-    font-weight: 500; font-size: 0.85rem;
-    transition: all 0.15s ease;
-  }
-  .stButton > button:hover, .stDownloadButton > button:hover {
-    border-color: var(--border-hover);
-    background: var(--bg-3);
-    transform: none;
-  }
-  .stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, var(--accent) 0%,
-                                          var(--accent-2) 100%);
-    border: none; color: white;
-    box-shadow: 0 4px 14px rgba(134, 188, 37, 0.25);
-  }
-  .stButton > button[kind="primary"]:hover {
-    box-shadow: 0 6px 20px rgba(134, 188, 37, 0.4);
-  }
-
-  /* ── Dataframes ─────────────────────────────────────────── */
-  div[data-testid="stDataFrame"] {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-  }
-
-  /* ── Expanders ──────────────────────────────────────────── */
-  .streamlit-expanderHeader, [data-testid="stExpander"] summary {
-    background: var(--bg-2) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: var(--radius) !important;
-    font-weight: 500;
-  }
-  [data-testid="stExpander"] { border: none !important; }
-
-  /* ── Metric (nativo Streamlit) ──────────────────────────── */
-  div[data-testid="stMetricValue"] {
-    font-size: 1.5rem !important; font-weight: 600 !important;
-    letter-spacing: -0.02em !important;
-  }
-  div[data-testid="stMetricLabel"] {
-    color: var(--text-muted) !important;
-    font-size: 0.75rem !important; text-transform: uppercase;
-    letter-spacing: 0.05em !important;
-  }
-
-  /* ── Divider ────────────────────────────────────────────── */
-  hr { border-color: var(--border) !important; opacity: 0.5; }
-
-  /* ── Caption / subtítulos ───────────────────────────────── */
-  .stCaption, [data-testid="stCaptionContainer"] {
-    color: var(--text-muted) !important;
-  }
-
-  /* ── Login card ─────────────────────────────────────────── */
-  .login-card {
-    max-width: 380px; margin: 3rem auto;
-    background: var(--bg-2); backdrop-filter: blur(12px);
-    border: 1px solid var(--border); border-radius: var(--radius-lg);
-    padding: 2rem;
-  }
-
-  /* ── Scrollbar ──────────────────────────────────────────── */
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  /* Metrics & misc */
+  div[data-testid="stMetricValue"] { font-size: 1.5rem; }
+  .stDivider { opacity: 0.3; }
+  ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb {
-    background: var(--border-hover); border-radius: 4px;
-  }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -335,70 +122,49 @@ def _check_password() -> bool:
     if st.session_state.get("authenticated"):
         return True
 
-    st.markdown('<div class="login-card">', unsafe_allow_html=True)
-    st.markdown("### Acceso restringido")
-    st.caption("Introduce la contraseña para acceder al dashboard.")
-    pwd = st.text_input("Contraseña", type="password", key="login_pwd",
-                        label_visibility="collapsed",
-                        placeholder="Contraseña")
-    if st.button("Entrar", type="primary", use_container_width=True):
+    st.markdown("### 🔒 Acceso restringido")
+    pwd = st.text_input("Contraseña", type="password", key="login_pwd")
+    if st.button("Entrar", type="primary"):
         if hmac.compare_digest(pwd, password):
             st.session_state["authenticated"] = True
             st.rerun()
         else:
             st.error("Contraseña incorrecta.")
-    st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 
 _check_password()
 
-# ── Paleta corporativa Deloitte ─────────────────────────────────────────
-# Referencia: Deloitte Brand Guidelines (Green 7 signature + Cool Greys
-# + complementos corporativos Blue / Teal).
-COLORWAY = [
-    "#86BC25",  # Deloitte Green 7 (signature)
-    "#046A38",  # Deloitte Green 4 (dark)
-    "#43B02A",  # Deloitte Green 6
-    "#0076A8",  # Deloitte Blue 4
-    "#62B5E5",  # Deloitte Blue 7
-    "#00ABAB",  # Deloitte Teal
-    "#97999B",  # Deloitte Cool Grey 7
-    "#012169",  # Deloitte Navy
-]
-
-pio.templates["premium"] = go.layout.Template(
-    layout=go.Layout(
-        font=dict(family="Inter, -apple-system, system-ui, sans-serif",
-                  color="#E8ECF1", size=12),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False, zeroline=False, showline=False,
-                   tickcolor="rgba(255,255,255,0.08)",
-                   tickfont=dict(color="#97999B", size=11)),
-        yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)",
-                   zeroline=False, showline=False,
-                   tickfont=dict(color="#97999B", size=11)),
-        colorway=COLORWAY,
-        hoverlabel=dict(bgcolor="#111827",
-                        bordercolor="rgba(255,255,255,0.1)",
-                        font=dict(family="Inter", color="#F5F7FA")),
-        legend=dict(bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#97999B", size=11)),
-    )
+# ── Plotly premium template ─────────────────────────────────────────────
+_premium = go.Layout(
+    font=dict(family="Inter, -apple-system, sans-serif", color="#A0A0A0", size=12),
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    xaxis=dict(showgrid=False, zeroline=False,
+               linecolor="rgba(255,255,255,0.08)", linewidth=1,
+               tickfont=dict(size=11, color="#808080")),
+    yaxis=dict(showgrid=False, zeroline=False,
+               linecolor="rgba(255,255,255,0.08)", linewidth=1,
+               tickfont=dict(size=11, color="#808080")),
+    colorway=["#86BC25", "#00A3E0", "#A0A0A0", "#D0D0D0",
+              "#6B9B1E", "#0083B3", "#E0E0E0", "#66BB6A"],
+    hoverlabel=dict(bgcolor="#1A1A1A", bordercolor="rgba(255,255,255,0.1)",
+                    font=dict(family="Inter", size=12, color="#E0E0E0")),
+    legend=dict(font=dict(size=11, color="#A0A0A0")),
 )
-pio.templates.default = "premium"
+pio.templates["premium_dark"] = go.layout.Template(layout=_premium)
+PLOTLY_TEMPLATE = "plotly_dark+premium_dark"
+COLOR_SEQUENCE = ["#86BC25", "#00A3E0", "#A0A0A0", "#D0D0D0",
+                  "#6B9B1E", "#0083B3", "#E0E0E0", "#66BB6A"]
 
-PLOTLY_TEMPLATE = "premium"
-# Escalas secuenciales corporativas (usadas en heatmaps / mapas de calor).
-# GREEN_SCALE es la primaria (verde Deloitte); BLUE_SCALE para charts que
-# necesitan un segundo canal visual sin colisionar con la primaria.
-GREEN_SCALE = [[0.0, "#0B2E13"], [0.5, "#86BC25"], [1.0, "#E4F5C1"]]
-BLUE_SCALE = [[0.0, "#002A44"], [0.5, "#0076A8"], [1.0, "#C7E6F5"]]
-# Aliases para compatibilidad con el código que ya referenciaba INDIGO/PURPLE
-INDIGO_SCALE = GREEN_SCALE
-PURPLE_SCALE = BLUE_SCALE
-COLOR_SEQUENCE = COLORWAY
+# ── Section navigation ─────────────────────────────────────────────────
+SECTIONS = {
+    "Vista General": ["Resumen", "Tendencias", "Detalle"],
+    "Mercado": ["Órganos", "Geografía", "Proyectos & Módulos"],
+    "Competencia": ["Competidores", "Pipeline & Alertas"],
+}
+SECTION_ICONS = {"Vista General": "◈", "Mercado": "◉",
+                 "Competencia": "◆"}
 
 # ── Helpers ─────────────────────────────────────────────────────────────
 def fmt_eur(x: float | None) -> str:
@@ -415,13 +181,12 @@ def fmt_eur(x: float | None) -> str:
 
 def kpi_card(label: str, value: str, delta: str | None = None,
              delta_up: bool = True, icon: str = "") -> str:
-    del icon  # icono visual lo aporta la barrita CSS del card
     delta_html = ""
     if delta:
         cls = "up" if delta_up else "down"
-        arrow = "↑" if delta_up else "↓"
+        arrow = "▲" if delta_up else "▼"
         delta_html = f'<div class="delta {cls}">{arrow} {delta}</div>'
-    return (f'<div class="kpi-card">'
+    return (f'<div class="kpi-card"><span class="icon">{icon}</span>'
             f'<div class="label">{label}</div>'
             f'<div class="value">{value}</div>{delta_html}</div>')
 
@@ -448,42 +213,38 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
 
 
 # ── Header ──────────────────────────────────────────────────────────────
-df_full = load_dataframe()
-
-col_t, col_r = st.columns([7, 1])
-with col_t:
-    st.markdown(
-        '<div class="app-header">'
-        '<div class="breadcrumb">'
-        '<span class="crumb-dim">Dashboard</span>'
-        '<span class="crumb-sep">/</span>'
-        '<span class="crumb-active">Licitaciones SAP</span>'
-        '</div>'
-        '<h1>Licitaciones SAP · Sector Público</h1>'
-        '<p class="subtitle">Plataforma de Contratación del Sector Público '
-        '— reutilización al amparo de la Ley 37/2007</p>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-with col_r:
-    st.markdown('<div style="height: 1.2rem"></div>', unsafe_allow_html=True)
-    if st.button("↻", help="Refrescar caché de datos",
-                 use_container_width=True):
+_hdr_l, _hdr_r = st.columns([9, 1])
+with _hdr_l:
+    st.markdown("## Licitaciones SAP · Sector Público")
+with _hdr_r:
+    if st.button("↻", use_container_width=True, help="Refrescar caché"):
         st.cache_data.clear()
         st.rerun()
+
+df_full = load_dataframe()
 
 if df_full.empty:
     st.warning("No hay datos en la BD. Ejecuta:")
     st.code("python -m scheduler.run_update --backfill 2024 1")
     st.stop()
 
-# ── Sidebar: filtros ────────────────────────────────────────────────────
+# ── Sidebar: navegación + filtros ─────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### Filtros")
+    st.markdown(
+        '<p style="font-size:1.05rem;font-weight:600;letter-spacing:-0.02em;'
+        'color:#E0E0E0;margin:0 0 1rem 2px">⬡ Licitaciones SAP</p>',
+        unsafe_allow_html=True,
+    )
+    section = st.radio(
+        "nav", list(SECTIONS.keys()),
+        format_func=lambda x: f"{SECTION_ICONS[x]}  {x}",
+        label_visibility="collapsed", key="nav_section",
+    )
+    st.divider()
+    st.markdown("##### Filtros")
 
     # Búsqueda libre
-    q = st.text_input("Buscar (título / descripción)", "",
-                      placeholder="Escribe para filtrar…")
+    q = st.text_input("🔍 Buscar (título / descripción)", "")
 
     # Rango fechas
     fmin = df_full["fecha_publicacion"].min()
@@ -577,22 +338,21 @@ with c5:
 
 st.markdown("")  # espaciado
 
-# ── Tabs ─────────────────────────────────────────────────────────────────
-tab_overview, tab_mercado, tab_analisis, tab_accion = st.tabs([
-    "Overview", "Mercado", "Análisis", "Acción"])
-
-with tab_overview:
-    tab_resumen, tab_tendencias = st.tabs(["Resumen", "Tendencias"])
-with tab_mercado:
-    tab_org, tab_geo = st.tabs(["Órganos", "Geografía"])
-with tab_analisis:
-    tab_proyectos, tab_adjudicatarios = st.tabs(
-        ["Proyectos & módulos", "Adjudicatarios"])
-with tab_accion:
-    tab_prevision, tab_detalle = st.tabs(["Previsión", "Detalle"])
+# ── Sub-nav + breadcrumb ───────────────────────────────────────────────────
+_pages = SECTIONS[section]
+page = st.radio("p", _pages, horizontal=True,
+                label_visibility="collapsed",
+                key=f"nav_page_{section}")
+st.markdown(
+    f'<div class="bc"><span class="bc-section">{section}</span>'
+    f'<span class="bc-sep">›</span>'
+    f'<span class="bc-page">{page}</span></div>',
+    unsafe_allow_html=True,
+)
+st.markdown("")
 
 # ─── Tab Resumen ────────────────────────────────────────────────────────
-with tab_resumen:
+if page == "Resumen":
     cL, cR = st.columns([2, 1])
     with cL:
         st.subheader("Top 10 licitaciones por importe")
@@ -609,7 +369,7 @@ with tab_resumen:
                 f'<div class="top-card">'
                 f'<div class="amount">{fmt_eur(row["importe"])}</div>'
                 f'<div class="title"><a href="{url}" target="_blank" '
-                f'style="color:#E8ECF1;text-decoration:none">'
+                f'style="color:#E0E0E0;text-decoration:none">'
                 f'{titulo}</a></div>'
                 f'<div class="meta">'
                 f'{organo} · '
@@ -638,15 +398,46 @@ with tab_resumen:
         if not tp.empty:
             fig = px.bar(tp, x="n", y="tipo_proyecto", orientation="h",
                           template=PLOTLY_TEMPLATE,
-                          color="n", color_continuous_scale=INDIGO_SCALE,
+                          color="n", color_continuous_scale="Greens",
                           labels={"n": "", "tipo_proyecto": ""})
             fig.update_layout(height=300, showlegend=False,
                                coloraxis_showscale=False,
                                margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
 
+    # ── Indicadores de mercado ──
+    adj_resumen = load_adjudicaciones()
+    if not adj_resumen.empty:
+        ids_filt = set(df["id_externo"])
+        adj_r = adj_resumen[adj_resumen["licitacion_id"].isin(ids_filt)]
+        cM1, cM2, cM3 = st.columns(3)
+        with cM1:
+            pct_pyme = ((adj_r["es_pyme"] == 1).sum() /
+                         adj_r["es_pyme"].notna().sum() * 100
+                         if adj_r["es_pyme"].notna().any() else 0)
+            st.markdown(kpi_card("% adjudicado PYMEs",
+                                  f"{pct_pyme:.0f}%", icon="🏭"),
+                         unsafe_allow_html=True)
+        with cM2:
+            top_cum = (adj_r.groupby("nombre_canonico")["importe_adjudicado"]
+                          .sum().sort_values(ascending=False))
+            top10 = (top_cum.head(10).sum() /
+                      top_cum.sum() * 100) if top_cum.sum() else 0
+            st.markdown(kpi_card("Concentración top 10",
+                                  f"{top10:.0f}%",
+                                  delta="del importe adjudicado",
+                                  delta_up=top10 < 60, icon="📊"),
+                         unsafe_allow_html=True)
+        with cM3:
+            ofertas_med = adj_r["n_ofertas_recibidas"].median()
+            of_txt = f"{ofertas_med:.0f}" if pd.notna(ofertas_med) else "—"
+            st.markdown(kpi_card("Ofertas/adjudicación",
+                                  of_txt,
+                                  delta="mediana", icon="📨"),
+                         unsafe_allow_html=True)
+
 # ─── Tab Tendencias ─────────────────────────────────────────────────────
-with tab_tendencias:
+if page == "Tendencias":
     st.subheader("Evolución mensual")
     g = (df.dropna(subset=["mes"])
            .groupby("mes")
@@ -668,7 +459,7 @@ with tab_tendencias:
         with c2:
             fig = px.area(g, x="mes", y="importe", template=PLOTLY_TEMPLATE,
                            labels={"mes": "Mes", "importe": "Importe (€)"},
-                           color_discrete_sequence=["#046A38"])
+                           color_discrete_sequence=["#00A3E0"])
             fig.update_layout(height=380,
                                margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
@@ -683,7 +474,7 @@ with tab_tendencias:
         pivot = hm.pivot(index="estado", columns="mes",
                           values="n").fillna(0)
         fig = px.imshow(pivot, aspect="auto", template=PLOTLY_TEMPLATE,
-                         color_continuous_scale=INDIGO_SCALE,
+                         color_continuous_scale="Greens",
                          labels=dict(color="Licitaciones"))
         fig.update_layout(height=350,
                            margin=dict(t=20, b=10, l=10, r=10))
@@ -694,17 +485,16 @@ with tab_tendencias:
         fig = px.histogram(
             df.dropna(subset=["importe"]).assign(
                 importe_log=lambda x: x["importe"].clip(lower=1)),
-            x="importe_log", nbins=40,
+            x="importe_log", log_x=True, nbins=40,
             template=PLOTLY_TEMPLATE,
             color_discrete_sequence=["#86BC25"],
             labels={"importe_log": "Importe (€, log)"})
-        fig.update_xaxes(type="log")
         fig.update_layout(height=320,
                            margin=dict(t=20, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
 
 # ─── Tab Órganos ────────────────────────────────────────────────────────
-with tab_org:
+if page == "Órganos":
     cA, cB = st.columns(2)
     with cA:
         st.subheader("Top órganos por nº de licitaciones")
@@ -719,7 +509,7 @@ with tab_org:
                           y="organo_contratacion", orientation="h",
                           template=PLOTLY_TEMPLATE,
                           color="importe",
-                          color_continuous_scale=INDIGO_SCALE,
+                          color_continuous_scale="Greens",
                           labels={"n": "Licitaciones",
                                   "organo_contratacion": "",
                                   "importe": "Importe €"})
@@ -739,7 +529,7 @@ with tab_org:
             fig = px.bar(top_e.sort_values("importe"), x="importe",
                           y="organo_contratacion", orientation="h",
                           template=PLOTLY_TEMPLATE,
-                          color="n", color_continuous_scale=PURPLE_SCALE,
+                          color="n", color_continuous_scale="Blues",
                           labels={"importe": "Importe €",
                                   "organo_contratacion": "",
                                   "n": "Licitaciones"})
@@ -754,13 +544,13 @@ with tab_org:
         fig = px.treemap(
             tm, path=["organo_short", "tipo_proyecto"],
             values="importe", template=PLOTLY_TEMPLATE,
-            color="importe", color_continuous_scale=INDIGO_SCALE)
+            color="importe", color_continuous_scale="Greens")
         fig.update_layout(height=600,
                            margin=dict(t=20, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
 
 # ─── Tab Geografía ──────────────────────────────────────────────────────
-with tab_geo:
+if page == "Geografía":
     geo = (df.dropna(subset=["ccaa"])
              .groupby("ccaa")
              .agg(n=("id_externo", "count"),
@@ -773,7 +563,7 @@ with tab_geo:
         if not geo.empty:
             fig = px.bar(geo.sort_values("n"), x="n", y="ccaa",
                           orientation="h", template=PLOTLY_TEMPLATE,
-                          color="importe", color_continuous_scale=INDIGO_SCALE,
+                          color="importe", color_continuous_scale="Greens",
                           labels={"n": "Licitaciones", "ccaa": "",
                                   "importe": "Importe €"})
             fig.update_layout(height=600,
@@ -803,7 +593,7 @@ with tab_geo:
             )
 
 # ─── Tab Proyectos & módulos ───────────────────────────────────────────
-with tab_proyectos:
+if page == "Proyectos & Módulos":
     cMod, cType = st.columns(2)
 
     with cMod:
@@ -820,7 +610,7 @@ with tab_proyectos:
                           x="n", y="modulos", orientation="h",
                           template=PLOTLY_TEMPLATE,
                           color="importe",
-                          color_continuous_scale=INDIGO_SCALE,
+                          color_continuous_scale="YlGn",
                           labels={"n": "Apariciones", "modulos": "",
                                   "importe": "Importe €"})
             fig.update_layout(height=520,
@@ -834,7 +624,7 @@ with tab_proyectos:
         if not cross.empty:
             fig = px.sunburst(cross, path=["tipo_proyecto", "estado_desc"],
                                 values="n", template=PLOTLY_TEMPLATE,
-                                color="n", color_continuous_scale=INDIGO_SCALE)
+                                color="n", color_continuous_scale="Greens")
             fig.update_layout(height=520,
                                 margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
@@ -856,730 +646,16 @@ with tab_proyectos:
                 "Importe €": st.column_config.NumberColumn(format="%.0f €")},
         )
 
-# ─── Tab Adjudicatarios ─────────────────────────────────────────────────
-with tab_adjudicatarios:
-    adj_full = load_adjudicaciones()
-
-    # Restringir adjudicaciones a las licitaciones filtradas en sidebar
-    if not adj_full.empty:
-        ids_filtrados = set(df["id_externo"])
-        adj = adj_full[adj_full["licitacion_id"].isin(ids_filtrados)].copy()
-    else:
-        adj = adj_full
-
-    if adj.empty:
-        st.info("Aún no hay datos de adjudicación. Las licitaciones en estado "
-                 "ADJ/RES son las que traen información del adjudicatario.")
-    else:
-        # ── KPIs ──
-        n_adj = len(adj)
-        n_empresas = adj["empresa_key"].dropna().nunique()
-        importe_adj_total = adj["importe_adjudicado"].sum(skipna=True)
-        pct_pyme = ((adj["es_pyme"] == 1).sum() /
-                     adj["es_pyme"].notna().sum() * 100
-                     if adj["es_pyme"].notna().any() else 0)
-
-        # Top empresa por importe (agrupado por empresa_key)
-        top_emp = (adj.groupby("nombre_canonico")["importe_adjudicado"].sum()
-                       .sort_values(ascending=False))
-        top_nombre = top_emp.index[0] if len(top_emp) else "—"
-        top_importe = top_emp.iloc[0] if len(top_emp) else 0
-
-        # Ahorro medio (importe licitación vs adjudicado)
-        with_lic = adj.merge(
-            df[["id_externo", "importe"]].rename(
-                columns={"importe": "importe_lic"}),
-            left_on="licitacion_id", right_on="id_externo", how="left")
-        ahorro_pct = None
-        valid = with_lic.dropna(subset=["importe_lic", "importe_adjudicado"])
-        valid = valid[valid["importe_lic"] > 0]
-        if not valid.empty:
-            ahorros = (1 - valid["importe_adjudicado"] / valid["importe_lic"])
-            ahorro_pct = ahorros.median() * 100
-
-        kc1, kc2, kc3, kc4, kc5 = st.columns(5)
-        kc1.markdown(kpi_card("Adjudicaciones", f"{n_adj:,}", icon="✍️"),
-                       unsafe_allow_html=True)
-        kc2.markdown(kpi_card("Empresas únicas", f"{n_empresas:,}",
-                               icon="🏢"), unsafe_allow_html=True)
-        kc3.markdown(kpi_card("Importe adjudicado",
-                               fmt_eur(importe_adj_total), icon="💸"),
-                       unsafe_allow_html=True)
-        kc4.markdown(kpi_card("% adjudicado a PYMEs",
-                               f"{pct_pyme:.0f}%", icon="🏭"),
-                       unsafe_allow_html=True)
-        if ahorro_pct is not None:
-            delta_up = ahorro_pct > 0
-            kc5.markdown(kpi_card("Baja media (lic→adj)",
-                                    f"{ahorro_pct:.1f}%",
-                                    delta="vs precio licitación",
-                                    delta_up=delta_up, icon="📉"),
-                          unsafe_allow_html=True)
-        else:
-            kc5.markdown(kpi_card("Baja media", "—", icon="📉"),
-                          unsafe_allow_html=True)
-
-        st.markdown("")
-
-        # ── Top empresas ──
-        cT1, cT2 = st.columns(2)
-        with cT1:
-            st.subheader("Top 15 empresas por importe adjudicado")
-            top_imp = (adj.groupby("nombre_canonico")
-                          .agg(importe=("importe_adjudicado", "sum"),
-                               n=("id", "count"))
-                          .reset_index()
-                          .rename(columns={"nombre_canonico": "nombre"})
-                          .sort_values("importe", ascending=False)
-                          .head(15))
-            if not top_imp.empty:
-                fig = px.bar(top_imp.sort_values("importe"),
-                              x="importe", y="nombre", orientation="h",
-                              template=PLOTLY_TEMPLATE,
-                              color="n", color_continuous_scale=INDIGO_SCALE,
-                              labels={"importe": "Importe €",
-                                      "nombre": "",
-                                      "n": "Nº contratos"},
-                              hover_data=["n"])
-                fig.update_layout(height=520,
-                                   margin=dict(t=20, b=10, l=10, r=10))
-                st.plotly_chart(fig, use_container_width=True)
-        with cT2:
-            st.subheader("Top 15 empresas por nº contratos")
-            top_n = (adj.groupby("nombre_canonico")
-                        .agg(n=("id", "count"),
-                             importe=("importe_adjudicado", "sum"))
-                        .reset_index()
-                        .rename(columns={"nombre_canonico": "nombre"})
-                        .sort_values("n", ascending=False)
-                        .head(15))
-            if not top_n.empty:
-                fig = px.bar(top_n.sort_values("n"),
-                              x="n", y="nombre", orientation="h",
-                              template=PLOTLY_TEMPLATE,
-                              color="importe",
-                              color_continuous_scale=PURPLE_SCALE,
-                              labels={"n": "Nº contratos", "nombre": "",
-                                      "importe": "Importe €"},
-                              hover_data=["importe"])
-                fig.update_layout(height=520,
-                                   margin=dict(t=20, b=10, l=10, r=10))
-                st.plotly_chart(fig, use_container_width=True)
-
-        # ── PYMEs + concentración + competencia ──
-        cP1, cP2, cP3 = st.columns(3)
-        with cP1:
-            st.subheader("PYME vs no-PYME")
-            sme = adj.dropna(subset=["es_pyme"]).copy()
-            sme["categoria"] = sme["es_pyme"].map({1: "PYME",
-                                                      0: "No PYME"})
-            if not sme.empty:
-                gr = (sme.groupby("categoria")
-                          .agg(n=("id", "count"),
-                               importe=("importe_adjudicado", "sum"))
-                          .reset_index())
-                fig = px.pie(gr, names="categoria", values="importe",
-                              hole=0.55, template=PLOTLY_TEMPLATE,
-                              color_discrete_sequence=["#86BC25", "#97999B"])
-                fig.update_traces(textinfo="label+percent")
-                fig.update_layout(height=320,
-                                   margin=dict(t=10, b=10, l=10, r=10),
-                                   showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.caption("Sin indicador PYME en los datos")
-
-        with cP2:
-            st.subheader("Concentración (Pareto)")
-            top_cum = (adj.groupby("nombre_canonico")["importe_adjudicado"]
-                          .sum().sort_values(ascending=False))
-            if len(top_cum) > 0:
-                cum_pct = (top_cum.cumsum() / top_cum.sum() * 100).values
-                rank_pct = ((1 + pd.Series(range(len(top_cum)))) /
-                              len(top_cum) * 100).values
-                pareto = pd.DataFrame({"empresas_pct": rank_pct,
-                                        "importe_pct": cum_pct})
-                fig = px.area(pareto, x="empresas_pct", y="importe_pct",
-                               template=PLOTLY_TEMPLATE,
-                               color_discrete_sequence=["#86BC25"],
-                               labels={"empresas_pct": "% empresas",
-                                       "importe_pct": "% importe acumulado"})
-                fig.update_layout(height=320,
-                                   margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(fig, use_container_width=True)
-                # Métricas concretas
-                top10 = (top_cum.head(10).sum() /
-                          top_cum.sum() * 100) if top_cum.sum() else 0
-                st.caption(f"📊 **Top 10 empresas captan el "
-                            f"{top10:.0f}%** del importe adjudicado")
-
-        with cP3:
-            st.subheader("Nº ofertas recibidas")
-            ofertas = adj.dropna(subset=["n_ofertas_recibidas"])
-            if not ofertas.empty:
-                fig = px.histogram(
-                    ofertas, x="n_ofertas_recibidas",
-                    nbins=20, template=PLOTLY_TEMPLATE,
-                    color_discrete_sequence=["#86BC25"],
-                    labels={"n_ofertas_recibidas": "Ofertas por concurso"})
-                fig.update_layout(height=320,
-                                   margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(fig, use_container_width=True)
-                st.caption(f"📊 Mediana: "
-                            f"**{ofertas['n_ofertas_recibidas'].median():.0f} "
-                            f"ofertas** por adjudicación")
-
-        # ── CCAA origen empresas ──
-        st.subheader("Origen de los adjudicatarios por CCAA")
-        ccaa_adj = (adj.dropna(subset=["ccaa"])
-                       .groupby("ccaa")
-                       .agg(n=("id", "count"),
-                            importe=("importe_adjudicado", "sum"),
-                            empresas=("empresa_key", "nunique"))
-                       .reset_index()
-                       .sort_values("importe", ascending=False))
-        if not ccaa_adj.empty:
-            fig = px.bar(ccaa_adj.sort_values("importe"),
-                          x="importe", y="ccaa", orientation="h",
-                          template=PLOTLY_TEMPLATE,
-                          color="empresas",
-                          color_continuous_scale=INDIGO_SCALE,
-                          labels={"importe": "Importe adjudicado €",
-                                  "ccaa": "",
-                                  "empresas": "Empresas únicas"},
-                          hover_data=["n"])
-            fig.update_layout(height=420,
-                               margin=dict(t=20, b=10, l=10, r=10))
-            st.plotly_chart(fig, use_container_width=True)
-
-        # ── Métricas comparativas por empresa ──
-        st.divider()
-        st.subheader("Métricas comparativas por empresa")
-        st.caption("Para estudiar rentabilidad y perfil competitivo. "
-                    "Solo empresas con al menos 2 adjudicaciones.")
-
-        def _pct_top_organo(s: pd.Series) -> float:
-            if s.empty:
-                return 0.0
-            counts = s.value_counts(normalize=True)
-            return float(counts.iloc[0] * 100)
-
-        adj_m = adj.copy()
-        adj_m["es_monopolio"] = (adj_m["n_ofertas_recibidas"] == 1).astype(int)
-        adj_m["año"] = adj_m["fecha_adjudicacion"].dt.year
-
-        metr = (adj_m.groupby("empresa_key", dropna=False)
-                       .agg(empresa=("nombre_canonico", "first"),
-                            nif=("nif_norm", "first"),
-                            contratos=("id", "count"),
-                            importe_total=("importe_adjudicado", "sum"),
-                            importe_medio=("importe_adjudicado", "mean"),
-                            importe_mediano=("importe_adjudicado", "median"),
-                            baja_media=("baja_pct", "mean"),
-                            baja_mediana=("baja_pct", "median"),
-                            ofertas_medias=("n_ofertas_recibidas", "mean"),
-                            pct_monopolio=("es_monopolio",
-                                            lambda s: s.mean() * 100),
-                            organos=("organo_contratacion", "nunique"),
-                            pct_top_organo=("organo_contratacion",
-                                              _pct_top_organo),
-                            primera=("fecha_adjudicacion", "min"),
-                            ultima=("fecha_adjudicacion", "max"))
-                       .reset_index(drop=True))
-        metr = metr[metr["contratos"] >= 2].copy()
-        if not metr.empty:
-            antig_dias = (metr["ultima"] - metr["primera"]).dt.days
-            antig_años = (antig_dias / 365.25).clip(lower=0.5)
-            metr["antiguedad_años"] = antig_años.round(1)
-            metr["contratos_año"] = (metr["contratos"] / antig_años).round(1)
-            total_imp = metr["importe_total"].sum()
-            metr["cuota_pct"] = (
-                metr["importe_total"] / total_imp * 100
-                if total_imp else 0)
-            metr = metr.sort_values("importe_total", ascending=False)
-
-            cols_show = ["empresa", "nif", "contratos", "contratos_año",
-                          "antiguedad_años", "importe_total", "cuota_pct",
-                          "importe_medio", "importe_mediano",
-                          "baja_media", "baja_mediana",
-                          "ofertas_medias", "pct_monopolio",
-                          "organos", "pct_top_organo", "ultima"]
-            st.dataframe(
-                metr[cols_show].head(100),
-                use_container_width=True, hide_index=True, height=420,
-                column_config={
-                    "empresa": st.column_config.TextColumn("Empresa",
-                                                             width="large"),
-                    "nif": st.column_config.TextColumn("NIF",
-                                                        width="small"),
-                    "contratos": st.column_config.NumberColumn("Contratos"),
-                    "contratos_año": st.column_config.NumberColumn(
-                        "Contr./año",
-                        help="Ritmo de adjudicaciones por año activo"),
-                    "antiguedad_años": st.column_config.NumberColumn(
-                        "Antigüedad",
-                        help="Años entre primera y última adjudicación"),
-                    "importe_total": st.column_config.NumberColumn(
-                        "Importe total", format="%.0f €"),
-                    "cuota_pct": st.column_config.NumberColumn(
-                        "Cuota %", format="%.1f%%",
-                        help="% sobre importe adjudicado total del filtro"),
-                    "importe_medio": st.column_config.NumberColumn(
-                        "Imp. medio", format="%.0f €"),
-                    "importe_mediano": st.column_config.NumberColumn(
-                        "Imp. mediano", format="%.0f €"),
-                    "baja_media": st.column_config.NumberColumn(
-                        "Baja media", format="%.1f%%",
-                        help="Agresividad media en oferta"),
-                    "baja_mediana": st.column_config.NumberColumn(
-                        "Baja mediana", format="%.1f%%"),
-                    "ofertas_medias": st.column_config.NumberColumn(
-                        "Ofertas enfrent.", format="%.1f",
-                        help="Competencia media a la que se enfrentó"),
-                    "pct_monopolio": st.column_config.NumberColumn(
-                        "% Monopolio", format="%.0f%%",
-                        help="% de sus contratos con 1 sola oferta"),
-                    "organos": st.column_config.NumberColumn("Órganos"),
-                    "pct_top_organo": st.column_config.NumberColumn(
-                        "% top-1 órgano", format="%.0f%%",
-                        help="Dependencia del cliente principal"),
-                    "ultima": st.column_config.DateColumn("Última adj."),
-                },
-            )
-
-            # Scatter: posicionamiento competitivo
-            st.markdown("##### 🎯 Mapa de posicionamiento competitivo")
-            scatter = metr.dropna(
-                subset=["importe_medio", "baja_media"]).head(60)
-            if not scatter.empty:
-                fig = px.scatter(
-                    scatter, x="baja_media", y="importe_medio",
-                    size="contratos", color="pct_monopolio",
-                    hover_name="empresa",
-                    hover_data={"contratos": True,
-                                  "importe_total": ":,.0f",
-                                  "ofertas_medias": ":.1f",
-                                  "pct_monopolio": ":.0f"},
-                    template=PLOTLY_TEMPLATE,
-                    color_continuous_scale="RdYlGn_r", log_y=True,
-                    labels={"baja_media": "Baja media (%) — agresividad",
-                              "importe_medio": "Importe medio por contrato (€, log)",
-                              "pct_monopolio": "% monopolio"})
-                fig.update_layout(height=520,
-                                   margin=dict(t=20, b=10, l=10, r=10))
-                st.plotly_chart(fig, use_container_width=True)
-                st.caption("📍 Cuadrante **arriba-derecha**: contratos grandes "
-                            "con baja agresiva (alta competencia). "
-                            "**Arriba-izquierda con color rojo**: contratos "
-                            "grandes sin competencia (clientes cautivos). "
-                            "Tamaño de burbuja = volumen de contratos.")
-        else:
-            st.info("Necesitas empresas con ≥2 adjudicaciones para "
-                     "calcular métricas comparativas.")
-
-        # ── Tabla buscable + drill-down por empresa ──
-        st.divider()
-        st.subheader("Buscador de empresas")
-        empresa_q = st.text_input(
-            "Filtrar por nombre o NIF",
-            placeholder="Ej: TELEFONICA, INDRA, B12345678...",
-            key="empresa_search",
-        )
-        ranking = (adj.groupby("empresa_key", dropna=False)
-                       .agg(nombre=("nombre_canonico", "first"),
-                            nif=("nif_norm", "first"),
-                            variantes=("nombre", "nunique"),
-                            contratos=("id", "count"),
-                            importe_total=("importe_adjudicado", "sum"),
-                            organos=("organo_contratacion", "nunique"),
-                            ultima=("fecha_adjudicacion", "max"))
-                       .reset_index()
-                       .sort_values("importe_total", ascending=False))
-        if empresa_q:
-            mask = (ranking["nombre"].str.contains(
-                        empresa_q, case=False, na=False) |
-                    ranking["nif"].fillna("").str.contains(
-                        empresa_q, case=False, na=False))
-            ranking = ranking[mask]
-
-        st.dataframe(
-            ranking.drop(columns=["empresa_key"]),
-            use_container_width=True, hide_index=True,
-            column_config={
-                "nombre": st.column_config.TextColumn("Empresa",
-                                                       width="large"),
-                "nif": st.column_config.TextColumn("NIF/CIF",
-                                                    width="small"),
-                "variantes": st.column_config.NumberColumn(
-                    "Variantes nombre",
-                    help="Nº de grafías distintas agrupadas"),
-                "contratos": st.column_config.NumberColumn("Contratos"),
-                "importe_total": st.column_config.NumberColumn(
-                    "Importe €", format="%.0f €"),
-                "organos": st.column_config.NumberColumn("Órganos"),
-                "ultima": st.column_config.DateColumn("Última adj."),
-            },
-            height=350,
-        )
-
-        # ── Drill-down: seleccionar varias empresas para comparar ──
-        st.divider()
-        st.subheader("Drill-down por empresa(s)")
-        opciones_df = ranking[["nombre", "empresa_key"]].head(200)
-        opciones = opciones_df["nombre"].tolist()
-        empresas_sel = st.multiselect(
-            "Selecciona una o varias empresas",
-            options=opciones,
-            placeholder="Empieza a escribir o elige del listado…",
-        )
-        if empresas_sel:
-            keys_sel = opciones_df[
-                opciones_df["nombre"].isin(empresas_sel)]["empresa_key"].tolist()
-            sub = adj[adj["empresa_key"].isin(keys_sel)].copy()
-
-            # KPIs agregados
-            cE1, cE2, cE3, cE4 = st.columns(4)
-            cE1.metric("Empresas", len(empresas_sel))
-            cE2.metric("Contratos", len(sub))
-            cE3.metric("Importe total",
-                        fmt_eur(sub["importe_adjudicado"].sum()))
-            cE4.metric("Órganos distintos",
-                        sub["organo_contratacion"].nunique())
-
-            # Tabla comparativa
-            comp = (sub.groupby("empresa_key")
-                       .agg(nombre=("nombre_canonico", "first"),
-                            contratos=("id", "count"),
-                            importe=("importe_adjudicado", "sum"),
-                            organos=("organo_contratacion", "nunique"),
-                            primera=("fecha_adjudicacion", "min"),
-                            ultima=("fecha_adjudicacion", "max"))
-                       .reset_index(drop=True)
-                       .sort_values("importe", ascending=False))
-            st.dataframe(
-                comp, use_container_width=True, hide_index=True,
-                column_config={
-                    "nombre": st.column_config.TextColumn("Empresa",
-                                                            width="large"),
-                    "contratos": st.column_config.NumberColumn("Contratos"),
-                    "importe": st.column_config.NumberColumn(
-                        "Importe €", format="%.0f €"),
-                    "organos": st.column_config.NumberColumn("Órganos"),
-                    "primera": st.column_config.DateColumn("Primera adj."),
-                    "ultima": st.column_config.DateColumn("Última adj."),
-                },
-            )
-
-            # Métricas comparativas de las empresas seleccionadas
-            if "empresa_key" in metr.columns or not metr.empty:
-                comp_metr = metr[metr["empresa"].isin(
-                    [opciones_df[opciones_df["nombre"] == e]["nombre"].iloc[0]
-                     for e in empresas_sel])]
-                if not comp_metr.empty:
-                    st.markdown("##### 📐 Métricas comparativas")
-                    cols_min = ["empresa", "contratos", "importe_medio",
-                                 "baja_media", "ofertas_medias",
-                                 "pct_monopolio", "pct_top_organo",
-                                 "contratos_año"]
-                    st.dataframe(
-                        comp_metr[cols_min], use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "empresa": st.column_config.TextColumn("Empresa"),
-                            "contratos": st.column_config.NumberColumn(
-                                "Contratos"),
-                            "importe_medio": st.column_config.NumberColumn(
-                                "Imp. medio", format="%.0f €"),
-                            "baja_media": st.column_config.NumberColumn(
-                                "Baja media", format="%.1f%%"),
-                            "ofertas_medias": st.column_config.NumberColumn(
-                                "Ofertas enfrent.", format="%.1f"),
-                            "pct_monopolio": st.column_config.NumberColumn(
-                                "% Monopolio", format="%.0f%%"),
-                            "pct_top_organo": st.column_config.NumberColumn(
-                                "% top-1 órgano", format="%.0f%%"),
-                            "contratos_año": st.column_config.NumberColumn(
-                                "Contr./año"),
-                        },
-                    )
-
-            # Comparativa visual cuando hay >1 empresa
-            if len(empresas_sel) > 1:
-                cV1, cV2 = st.columns(2)
-                with cV1:
-                    fig = px.bar(comp.sort_values("importe"),
-                                  x="importe", y="nombre", orientation="h",
-                                  template=PLOTLY_TEMPLATE,
-                                  color="contratos",
-                                  color_continuous_scale=INDIGO_SCALE,
-                                  labels={"importe": "Importe €",
-                                          "nombre": "",
-                                          "contratos": "Contratos"})
-                    fig.update_layout(
-                        height=350,
-                        margin=dict(t=20, b=10, l=10, r=10),
-                        title="Importe acumulado")
-                    st.plotly_chart(fig, use_container_width=True)
-                with cV2:
-                    # Evolución temporal por empresa
-                    if sub["fecha_adjudicacion"].notna().any():
-                        evo = (sub.dropna(subset=["fecha_adjudicacion"])
-                                  .assign(mes=lambda x: x["fecha_adjudicacion"]
-                                          .dt.to_period("M").dt.to_timestamp())
-                                  .groupby(["mes", "nombre_canonico"])
-                                  ["importe_adjudicado"].sum()
-                                  .reset_index()
-                                  .rename(columns={
-                                      "nombre_canonico": "nombre"}))
-                        fig = px.line(
-                            evo, x="mes", y="importe_adjudicado",
-                            color="nombre", markers=True,
-                            template=PLOTLY_TEMPLATE,
-                            color_discrete_sequence=COLOR_SEQUENCE,
-                            labels={"mes": "Mes",
-                                    "importe_adjudicado": "Importe €"})
-                        fig.update_layout(
-                            height=350,
-                            margin=dict(t=20, b=10, l=10, r=10),
-                            title="Evolución temporal",
-                            legend=dict(orientation="h", y=-0.2))
-                        st.plotly_chart(fig, use_container_width=True)
-
-            # Listado de proyectos (agrupado por empresa si son varias)
-            st.markdown("##### 📋 Proyectos adjudicados")
-            st.caption("ℹ️ La plataforma solo publica el adjudicatario, "
-                        "no el listado de licitadores que se presentaron.")
-            for empresa in empresas_sel:
-                key = opciones_df[
-                    opciones_df["nombre"] == empresa]["empresa_key"].iloc[0]
-                empresa_proyectos = sub[sub["empresa_key"] == key]
-                if len(empresas_sel) > 1:
-                    st.markdown(f"**🏢 {empresa}** "
-                                  f"({len(empresa_proyectos)} contratos · "
-                                  f"{fmt_eur(empresa_proyectos['importe_adjudicado'].sum())})")
-                for _, row in empresa_proyectos.sort_values(
-                        "importe_adjudicado", ascending=False).iterrows():
-                    url = row.get("url_lic") or "#"
-                    baja = row.get("baja_pct")
-                    baja_txt = (f"📉 {baja:.1f}% baja"
-                                  if pd.notna(baja) else "—")
-                    imp_lic = row.get("importe_licitacion")
-                    imp_lic_txt = (f"Lic: {fmt_eur(imp_lic)} · "
-                                     if pd.notna(imp_lic) else "")
-                    n_of = row.get("n_ofertas_recibidas")
-                    n_of_txt = (f"{int(n_of)} ofertas"
-                                  if pd.notna(n_of) else "ofertas: —")
-                    fecha_adj = (row["fecha_adjudicacion"].date()
-                                   if pd.notna(row["fecha_adjudicacion"])
-                                   else "—")
-                    pyme_txt = "· PYME" if row.get("es_pyme") == 1 else ""
-                    st.markdown(
-                        f'<div class="top-card">'
-                        f'<div class="amount">'
-                        f'{fmt_eur(row["importe_adjudicado"])}</div>'
-                        f'<div class="title"><a href="{url}" target="_blank" '
-                        f'style="color:#E8ECF1;text-decoration:none">'
-                        f'{(row["titulo"] or "")[:120]}</a></div>'
-                        f'<div class="meta">'
-                        f'{row.get("organo_contratacion","—")} · '
-                        f'Adj: {fecha_adj} · '
-                        f'{imp_lic_txt}{baja_txt} · '
-                        f'{n_of_txt} {pyme_txt}'
-                        f'</div></div>',
-                        unsafe_allow_html=True,
-                    )
-
-# ─── Tab Previsión ──────────────────────────────────────────────────────
-with tab_prevision:
-    st.subheader("Previsión de re-licitaciones de mantenimiento")
-    st.caption("Estimación de cuándo saldrán nuevos contratos de "
-               "mantenimiento a partir de la finalización de los actuales. "
-               "Solo se consideran proyectos clasificados como "
-               "*Mantenimiento*.")
-
-    cP1, cP2 = st.columns([1, 3])
-    with cP1:
-        meses_ant = st.slider("Meses de anticipación", 1, 18, 6,
-                                help="Antelación con la que se prevé "
-                                "que el órgano vuelva a licitar.")
-    with cP2:
-        horizonte_meses = st.slider("Horizonte (meses)", 3, 36, 18,
-                                      help="Solo muestra contratos que "
-                                      "terminen dentro de este horizonte.")
-
-    adj_full = load_adjudicaciones()
-    fc = build_forecast_df(df, adj_full, meses_anticipacion=meses_ant)
-
-    if fc.empty or fc["fecha_fin_estimada"].isna().all():
-        st.info("No hay suficientes datos de duración / fecha_fin para "
-                 "construir la previsión. Ejecuta el backfill con el parser "
-                 "actualizado para poblar esos campos.")
-    else:
-        # Cobertura
-        total_mant = (df["tipo_proyecto"] == "Mantenimiento").sum()
-        con_fecha = fc["fecha_fin_estimada"].notna().sum()
-        cobertura = (con_fecha / total_mant * 100) if total_mant else 0
-
-        hoy = pd.Timestamp.utcnow().tz_localize(None)
-        horizonte_fin = hoy + pd.DateOffset(months=horizonte_meses)
-        en_horizonte = fc[(fc["fecha_fin_estimada"] >= hoy) &
-                            (fc["fecha_fin_estimada"] <= horizonte_fin)].copy()
-        en_ventana = fc[(fc["relicit_inicio"] <= hoy) &
-                          (fc["fecha_fin_estimada"] >= hoy)].copy()
-
-        importe_riesgo = en_horizonte["importe"].sum(skipna=True)
-        importe_ventana = en_ventana["importe"].sum(skipna=True)
-
-        k1, k2, k3, k4, k5 = st.columns(5)
-        k1.markdown(kpi_card("Mantenim. analizados",
-                               f"{con_fecha:,}/{total_mant:,}",
-                               delta=f"{cobertura:.0f}% cobertura",
-                               delta_up=cobertura >= 60, icon="📊"),
-                      unsafe_allow_html=True)
-        k2.markdown(kpi_card("Vencen en horizonte",
-                               f"{len(en_horizonte):,}",
-                               delta=f"próx. {horizonte_meses} meses",
-                               icon="⏳"), unsafe_allow_html=True)
-        k3.markdown(kpi_card("Importe en horizonte",
-                               fmt_eur(importe_riesgo), icon="💰"),
-                      unsafe_allow_html=True)
-        k4.markdown(kpi_card("Ya en ventana relicit.",
-                               f"{len(en_ventana):,}",
-                               delta="oportunidad inmediata",
-                               icon="🎯"), unsafe_allow_html=True)
-        k5.markdown(kpi_card("Importe en ventana",
-                               fmt_eur(importe_ventana), icon="🚨"),
-                      unsafe_allow_html=True)
-
-        st.markdown("")
-
-        # Distribución por estado_forecast
-        cD1, cD2 = st.columns(2)
-        with cD1:
-            st.subheader("Distribución por horizonte temporal")
-            ef = (fc.dropna(subset=["estado_forecast"])
-                     .groupby("estado_forecast", observed=True)
-                     .agg(n=("id_externo", "count"),
-                          importe=("importe", "sum"))
-                     .reset_index())
-            if not ef.empty:
-                fig = px.bar(ef, x="estado_forecast", y="n",
-                              template=PLOTLY_TEMPLATE,
-                              color="importe",
-                              color_continuous_scale=PURPLE_SCALE,
-                              labels={"estado_forecast": "",
-                                      "n": "Contratos",
-                                      "importe": "Importe €"})
-                fig.update_layout(height=380,
-                                   margin=dict(t=20, b=10, l=10, r=10))
-                st.plotly_chart(fig, use_container_width=True)
-
-        with cD2:
-            st.subheader("Volumen previsto por trimestre")
-            qf = en_horizonte.dropna(subset=["fecha_fin_estimada"]).copy()
-            if not qf.empty:
-                qf["trimestre"] = (qf["fecha_fin_estimada"]
-                                     .dt.to_period("Q").dt.to_timestamp())
-                qg = (qf.groupby("trimestre")
-                          .agg(n=("id_externo", "count"),
-                               importe=("importe", "sum"))
-                          .reset_index())
-                fig = px.bar(qg, x="trimestre", y="importe",
-                              template=PLOTLY_TEMPLATE,
-                              color_discrete_sequence=["#86BC25"],
-                              labels={"trimestre": "",
-                                      "importe": "Importe que vence (€)"},
-                              hover_data=["n"])
-                fig.update_layout(height=380,
-                                   margin=dict(t=20, b=10, l=10, r=10))
-                st.plotly_chart(fig, use_container_width=True)
-
-        # Gantt / timeline
-        st.subheader("Timeline de contratos próximos a vencer")
-        tl = en_horizonte.dropna(
-            subset=["inicio_efectivo", "fecha_fin_estimada"]).copy()
-        if not tl.empty:
-            tl = tl.nlargest(30, "importe")
-            tl["label"] = tl["titulo"].str[:60]
-            fig = px.timeline(
-                tl, x_start="inicio_efectivo", x_end="fecha_fin_estimada",
-                y="label", color="importe",
-                color_continuous_scale=INDIGO_SCALE,
-                template=PLOTLY_TEMPLATE,
-                hover_data={"organo_contratacion": True,
-                             "importe": ":,.0f",
-                             "relicit_inicio": True,
-                             "label": False})
-            fig.add_shape(
-                type="line", x0=hoy.isoformat(), x1=hoy.isoformat(),
-                y0=0, y1=1, yref="paper",
-                line=dict(color="#DA291C", dash="dash"))
-            fig.add_annotation(
-                x=hoy.isoformat(), y=1, yref="paper",
-                text="Hoy", showarrow=False,
-                font=dict(color="#DA291C"), yanchor="bottom")
-            fig.update_yaxes(autorange="reversed")
-            fig.update_layout(height=600,
-                               margin=dict(t=20, b=10, l=10, r=10),
-                               yaxis_title="")
-            st.plotly_chart(fig, use_container_width=True)
-
-        # Listado de oportunidades
-        st.subheader("🎯 Próximas oportunidades de re-licitación")
-        st.caption("⚠️ La plataforma solo publica el adjudicatario, no el "
-                    "listado de empresas que se presentaron. Sí publica el "
-                    "número total de ofertas recibidas.")
-        op = en_horizonte.sort_values("fecha_fin_estimada").copy()
-        op = op.rename(columns={"adjudicatarios": "adjudicatario_actual"})
-        if not op.empty:
-            cols_op = ["fecha_fin_estimada", "relicit_inicio", "titulo",
-                        "organo_contratacion", "ccaa", "importe",
-                        "importe_adjudicado_total", "baja_pct", "n_ofertas",
-                        "adjudicatario_actual", "estado_forecast", "url"]
-            cols_op = [c for c in cols_op if c in op.columns]
-            st.dataframe(
-                op[cols_op], use_container_width=True, hide_index=True,
-                column_config={
-                    "fecha_fin_estimada": st.column_config.DateColumn(
-                        "Fin estimado"),
-                    "relicit_inicio": st.column_config.DateColumn(
-                        "Inicio ventana"),
-                    "titulo": st.column_config.TextColumn(
-                        "Título", width="large"),
-                    "organo_contratacion": st.column_config.TextColumn(
-                        "Órgano", width="medium"),
-                    "ccaa": st.column_config.TextColumn("CCAA",
-                                                          width="small"),
-                    "importe": st.column_config.NumberColumn(
-                        "Importe lic.", format="%.0f €"),
-                    "importe_adjudicado_total": st.column_config.NumberColumn(
-                        "Importe adj.", format="%.0f €"),
-                    "baja_pct": st.column_config.NumberColumn(
-                        "% Baja", format="%.1f%%",
-                        help="Diferencia entre importe licitación y "
-                              "adjudicación"),
-                    "n_ofertas": st.column_config.NumberColumn(
-                        "Nº ofertas",
-                        help="Empresas que presentaron oferta"),
-                    "adjudicatario_actual": st.column_config.TextColumn(
-                        "Adjudicatario actual", width="medium"),
-                    "estado_forecast": st.column_config.TextColumn(
-                        "Estado"),
-                    "url": st.column_config.LinkColumn(
-                        "Enlace", display_text="🔗"),
-                },
-                height=500,
-            )
-
-
 # ─── Tab Detalle ────────────────────────────────────────────────────────
-with tab_detalle:
+if page == "Detalle":
     st.subheader(f"Detalle de licitaciones ({len(df)})")
+    st.caption("Plataforma de Contratación del Sector Público — "
+               "reutilización al amparo de la Ley 37/2007")
 
     cdl1, cdl2 = st.columns([1, 6])
     with cdl1:
         st.download_button(
-            "Descargar Excel",
+            "⬇️ Excel",
             data=to_excel_bytes(df),
             file_name="licitaciones_sap.xlsx",
             mime="application/vnd.openxmlformats-officedocument."
@@ -1588,7 +664,7 @@ with tab_detalle:
         )
     with cdl2:
         st.download_button(
-            "Descargar CSV",
+            "⬇️ CSV",
             data=df.drop(columns=["modulos"]).to_csv(index=False)
                    .encode("utf-8-sig"),
             file_name="licitaciones_sap.csv", mime="text/csv",
@@ -1645,6 +721,691 @@ with tab_detalle:
                 if row.get("url"):
                     st.link_button("📄 Ver licitación oficial",
                                     row["url"], use_container_width=True)
+
+# ─── Competidores ─────────────────────────────────────────────────────────
+if page == "Competidores":
+    st.subheader("Análisis de competidores")
+    st.caption("Posicionamiento, dominio de mercado, especialización y búsqueda por empresa.")
+
+    adj_ci = load_adjudicaciones()
+    if adj_ci.empty:
+        st.info("Sin datos de adjudicación disponibles.")
+    else:
+        # Restringir al filtro activo del sidebar
+        ids_ci = set(df["id_externo"])
+        adj_ci = adj_ci[adj_ci["licitacion_id"].isin(ids_ci)].copy()
+
+        if adj_ci.empty:
+            st.info("Sin adjudicaciones para los filtros activos.")
+        else:
+            # ── Selector de empresa ──────────────────────────────────────
+            top_empresas = (adj_ci.groupby("empresa_key", dropna=True)
+                              .agg(nombre=("nombre_canonico", "first"),
+                                   importe=("importe_adjudicado", "sum"))
+                              .sort_values("importe", ascending=False)
+                              .head(200))
+            opciones_ci = top_empresas["nombre"].tolist()
+            sel_empresas = st.multiselect(
+                "Selecciona una o varias empresas a analizar",
+                opciones_ci,
+                placeholder="Empieza a escribir…",
+                key="ci_empresas",
+            )
+            if not sel_empresas:
+                sel_empresas = opciones_ci[:5]  # top 5 por defecto
+                st.caption(f"Mostrando top 5 por defecto.")
+
+            keys_ci = top_empresas[
+                top_empresas["nombre"].isin(sel_empresas)].index.tolist()
+            sub_ci = adj_ci[adj_ci["empresa_key"].isin(keys_ci)].copy()
+            total_mercado = adj_ci["importe_adjudicado"].sum(skipna=True)
+
+            # ── KPIs por empresa ────────────────────────────────────────
+            metr_ci = (sub_ci.groupby("empresa_key", dropna=True)
+                         .agg(empresa=("nombre_canonico", "first"),
+                              contratos=("id", "count"),
+                              volumen=("importe_adjudicado", "sum"),
+                              ticket_medio=("importe_adjudicado", "mean"),
+                              organos=("organo_contratacion", "nunique"))
+                         .reset_index(drop=True))
+            metr_ci["cuota_pct"] = (
+                metr_ci["volumen"] / total_mercado * 100
+                if total_mercado else 0)
+            # Tasa de dependencia de cliente principal
+            def _dep_cliente(key: str) -> float:
+                s = sub_ci[sub_ci["empresa_key"] == key]["organo_contratacion"]
+                if s.empty:
+                    return 0.0
+                return float(s.value_counts(normalize=True).iloc[0] * 100)
+
+            metr_ci["dep_cliente_pct"] = [
+                _dep_cliente(k) for k in
+                sub_ci.groupby("empresa_key").groups.keys()
+                if k in top_empresas.index
+            ][:len(metr_ci)]
+
+            st.markdown("##### KPIs de posición y dominio")
+            kci_cols = st.columns(len(metr_ci) if len(metr_ci) <= 5 else 5)
+            for i, (_, row_m) in enumerate(metr_ci.iterrows()):
+                col_i = kci_cols[i % len(kci_cols)]
+                with col_i:
+                    st.markdown(
+                        kpi_card(row_m["empresa"][:22],
+                                 fmt_eur(row_m["volumen"]),
+                                 delta=f"{row_m['cuota_pct']:.1f}% cuota · "
+                                       f"{row_m['contratos']} contratos",
+                                 delta_up=True, icon="🏢"),
+                        unsafe_allow_html=True,
+                    )
+
+            st.markdown("")
+
+            # ── Volumen + cuota de mercado ───────────────────────────────
+            cCI1, cCI2 = st.columns(2)
+            with cCI1:
+                st.subheader("Volumen adjudicado y cuota de mercado")
+                fig = px.bar(metr_ci.sort_values("volumen"),
+                             x="volumen", y="empresa", orientation="h",
+                             template=PLOTLY_TEMPLATE,
+                             color="cuota_pct",
+                             color_continuous_scale="Greens",
+                             labels={"volumen": "Importe €",
+                                     "empresa": "",
+                                     "cuota_pct": "Cuota %"},
+                             hover_data=["contratos", "cuota_pct"])
+                fig.update_layout(height=360,
+                                  margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig, use_container_width=True)
+
+            with cCI2:
+                st.subheader("Ticket medio vs Dependencia de cliente")
+                if not metr_ci.empty and "dep_cliente_pct" in metr_ci.columns:
+                    fig = px.scatter(
+                        metr_ci, x="ticket_medio", y="dep_cliente_pct",
+                        size="contratos", color="cuota_pct",
+                        hover_name="empresa",
+                        template=PLOTLY_TEMPLATE,
+                        color_continuous_scale="RdYlGn_r",
+                        labels={"ticket_medio": "Ticket medio (€)",
+                                "dep_cliente_pct": "Dependencia cliente (%)",
+                                "cuota_pct": "Cuota %",
+                                "contratos": "Nº contratos"},
+                        log_x=True)
+                    fig.update_layout(height=360,
+                                      margin=dict(t=10, b=10, l=10, r=10))
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("Arriba-izquierda = tickets pequeños + cliente cautivo. "
+                               "Abajo-derecha = alta diversificación.")
+
+            # ── Mapa de calor geográfico ─────────────────────────────────
+            st.subheader("Distribución geográfica por CCAA")
+            geo_ci = (sub_ci.dropna(subset=["ccaa"])
+                       .groupby(["nombre_canonico", "ccaa"])
+                       .agg(importe=("importe_adjudicado", "sum"))
+                       .reset_index())
+            if not geo_ci.empty:
+                fig = px.density_heatmap(
+                    geo_ci, x="ccaa", y="nombre_canonico",
+                    z="importe", histfunc="sum",
+                    template=PLOTLY_TEMPLATE,
+                    color_continuous_scale="Greens",
+                    labels={"ccaa": "CCAA",
+                            "nombre_canonico": "Empresa",
+                            "importe": "Importe €"})
+                fig.update_layout(height=max(280, len(sel_empresas) * 60),
+                                  margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig, use_container_width=True)
+
+            # ── Treemap de especialización CPV ───────────────────────────
+            st.subheader("Especialización por CPV")
+            cpv_ci = sub_ci.merge(
+                df[["id_externo", "cpv_desc"]].drop_duplicates(),
+                left_on="licitacion_id", right_on="id_externo", how="left")
+            cpv_ci = cpv_ci.dropna(subset=["cpv_desc", "importe_adjudicado"])
+            if not cpv_ci.empty:
+                fig = px.treemap(
+                    cpv_ci, path=["nombre_canonico", "cpv_desc"],
+                    values="importe_adjudicado",
+                    template=PLOTLY_TEMPLATE,
+                    color="importe_adjudicado",
+                    color_continuous_scale="Greens",
+                    labels={"importe_adjudicado": "Importe €"})
+                fig.update_layout(height=480,
+                                  margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig, use_container_width=True)
+
+            # ── Estacionalidad ───────────────────────────────────────────
+            st.subheader("Estacionalidad de adjudicaciones")
+            seas_ci = sub_ci.dropna(subset=["fecha_adjudicacion"]).copy()
+            if not seas_ci.empty:
+                seas_ci["mes"] = (seas_ci["fecha_adjudicacion"]
+                                   .dt.to_period("M").dt.to_timestamp())
+                seas_g = (seas_ci.groupby(["mes", "nombre_canonico"])
+                            .agg(importe=("importe_adjudicado", "sum"),
+                                 n=("id", "count"))
+                            .reset_index())
+                fig = px.line(
+                    seas_g, x="mes", y="importe",
+                    color="nombre_canonico", markers=True,
+                    template=PLOTLY_TEMPLATE,
+                    color_discrete_sequence=COLOR_SEQUENCE,
+                    labels={"mes": "", "importe": "Importe adjudicado (€)",
+                            "nombre_canonico": "Empresa"})
+                fig.update_layout(height=360,
+                                  margin=dict(t=10, b=10, l=10, r=10),
+                                  legend=dict(orientation="h", y=-0.2))
+                st.plotly_chart(fig, use_container_width=True)
+
+            # ── Análisis de nicho (keywords frecuentes) ──────────────────
+            st.subheader("Perfil de nicho — palabras clave más frecuentes")
+            st.caption("Extraídas de los títulos y descripciones de sus contratos.")
+            import re as _re
+            from collections import Counter
+
+            _STOPWORDS = {
+                "de", "del", "la", "el", "los", "las", "para", "por",
+                "en", "con", "y", "a", "e", "o", "un", "una", "se",
+                "su", "al", "que", "es", "no", "lo", "le", "como",
+                "una", "sus", "más", "este", "esta", "estos",
+                "servicio", "servicios", "contrato", "lote",
+            }
+            nicho_cols = st.columns(min(len(sel_empresas), 3))
+            for col_idx, emp_name in enumerate(sel_empresas[:3]):
+                key_emp = top_empresas[
+                    top_empresas["nombre"] == emp_name].index
+                if len(key_emp) == 0:
+                    continue
+                rows_emp = sub_ci[sub_ci["empresa_key"] == key_emp[0]]
+                lic_ids = set(rows_emp["licitacion_id"])
+                textos = df[df["id_externo"].isin(lic_ids)].apply(
+                    lambda r: f"{r.get('titulo','')} {r.get('descripcion','')}",
+                    axis=1)
+                words = _re.findall(r"\b[a-záéíóúüñ]{4,}\b",
+                                    " ".join(textos.dropna()).lower())
+                top_words = Counter(
+                    w for w in words if w not in _STOPWORDS
+                ).most_common(12)
+                with nicho_cols[col_idx]:
+                    st.markdown(f"**{emp_name[:30]}**")
+                    if top_words:
+                        wdf = pd.DataFrame(top_words,
+                                           columns=["palabra", "frecuencia"])
+                        fig = px.bar(wdf, x="frecuencia", y="palabra",
+                                     orientation="h",
+                                     template=PLOTLY_TEMPLATE,
+                                     color="frecuencia",
+                                     color_continuous_scale="Greys",
+                                     labels={"frecuencia": "",
+                                             "palabra": ""})
+                        fig.update_layout(
+                            height=320, showlegend=False,
+                            coloraxis_showscale=False,
+                            margin=dict(t=5, b=5, l=5, r=5))
+                        st.plotly_chart(fig, use_container_width=True)
+
+            # ── Métricas comparativas por empresa ──────────────────────────
+            st.divider()
+            st.subheader("Métricas comparativas por empresa")
+            st.caption("Solo empresas con al menos 2 adjudicaciones.")
+
+            def _pct_top_organo(s: pd.Series) -> float:
+                if s.empty:
+                    return 0.0
+                counts = s.value_counts(normalize=True)
+                return float(counts.iloc[0] * 100)
+
+            adj_m = adj_ci.copy()
+            adj_m["es_monopolio"] = (adj_m["n_ofertas_recibidas"] == 1).astype(int)
+
+            metr = (adj_m.groupby("empresa_key", dropna=False)
+                           .agg(empresa=("nombre_canonico", "first"),
+                                nif=("nif_norm", "first"),
+                                contratos=("id", "count"),
+                                importe_total=("importe_adjudicado", "sum"),
+                                importe_medio=("importe_adjudicado", "mean"),
+                                baja_media=("baja_pct", "mean"),
+                                ofertas_medias=("n_ofertas_recibidas", "mean"),
+                                pct_monopolio=("es_monopolio",
+                                                lambda s: s.mean() * 100),
+                                organos=("organo_contratacion", "nunique"),
+                                pct_top_organo=("organo_contratacion",
+                                                  _pct_top_organo),
+                                primera=("fecha_adjudicacion", "min"),
+                                ultima=("fecha_adjudicacion", "max"))
+                           .reset_index(drop=True))
+            metr = metr[metr["contratos"] >= 2].copy()
+            if not metr.empty:
+                antig_dias = (metr["ultima"] - metr["primera"]).dt.days
+                antig_años = (antig_dias / 365.25).clip(lower=0.5)
+                metr["contratos_año"] = (metr["contratos"] / antig_años).round(1)
+                total_imp = metr["importe_total"].sum()
+                metr["cuota_pct"] = (
+                    metr["importe_total"] / total_imp * 100
+                    if total_imp else 0)
+                metr = metr.sort_values("importe_total", ascending=False)
+
+                st.dataframe(
+                    metr[["empresa", "nif", "contratos", "contratos_año",
+                          "importe_total", "cuota_pct", "importe_medio",
+                          "baja_media", "ofertas_medias", "pct_monopolio",
+                          "organos", "pct_top_organo", "ultima"]].head(100),
+                    use_container_width=True, hide_index=True, height=380,
+                    column_config={
+                        "empresa": st.column_config.TextColumn("Empresa",
+                                                                 width="large"),
+                        "nif": st.column_config.TextColumn("NIF", width="small"),
+                        "contratos": st.column_config.NumberColumn("Contratos"),
+                        "contratos_año": st.column_config.NumberColumn("Contr./año"),
+                        "importe_total": st.column_config.NumberColumn(
+                            "Importe total", format="%.0f €"),
+                        "cuota_pct": st.column_config.NumberColumn(
+                            "Cuota %", format="%.1f%%"),
+                        "importe_medio": st.column_config.NumberColumn(
+                            "Imp. medio", format="%.0f €"),
+                        "baja_media": st.column_config.NumberColumn(
+                            "Baja media", format="%.1f%%"),
+                        "ofertas_medias": st.column_config.NumberColumn(
+                            "Ofertas enfrent.", format="%.1f"),
+                        "pct_monopolio": st.column_config.NumberColumn(
+                            "% Monopolio", format="%.0f%%"),
+                        "organos": st.column_config.NumberColumn("Órganos"),
+                        "pct_top_organo": st.column_config.NumberColumn(
+                            "% top-1 órgano", format="%.0f%%"),
+                        "ultima": st.column_config.DateColumn("Última adj."),
+                    },
+                )
+
+                # Scatter: posicionamiento competitivo
+                st.markdown("##### Mapa de posicionamiento competitivo")
+                scatter = metr.dropna(
+                    subset=["importe_medio", "baja_media"]).head(60)
+                if not scatter.empty:
+                    fig = px.scatter(
+                        scatter, x="baja_media", y="importe_medio",
+                        size="contratos", color="pct_monopolio",
+                        hover_name="empresa",
+                        template=PLOTLY_TEMPLATE,
+                        color_continuous_scale="RdYlGn_r", log_y=True,
+                        labels={"baja_media": "Baja media (%) — agresividad",
+                                  "importe_medio": "Importe medio (€, log)",
+                                  "pct_monopolio": "% monopolio"})
+                    fig.update_layout(height=480,
+                                       margin=dict(t=20, b=10, l=10, r=10))
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("Arriba-derecha: contratos grandes + baja agresiva. "
+                               "Arriba-izquierda rojo: clientes cautivos.")
+
+            # ── Buscador de empresas ─────────────────────────────────────
+            st.divider()
+            st.subheader("Buscador de empresas")
+            empresa_q = st.text_input(
+                "Filtrar por nombre o NIF",
+                placeholder="Ej: TELEFONICA, INDRA, B12345678...",
+                key="empresa_search",
+            )
+            ranking = (adj_ci.groupby("empresa_key", dropna=False)
+                           .agg(nombre=("nombre_canonico", "first"),
+                                nif=("nif_norm", "first"),
+                                variantes=("nombre", "nunique"),
+                                contratos=("id", "count"),
+                                importe_total=("importe_adjudicado", "sum"),
+                                organos=("organo_contratacion", "nunique"),
+                                ultima=("fecha_adjudicacion", "max"))
+                           .reset_index()
+                           .sort_values("importe_total", ascending=False))
+            if empresa_q:
+                mask = (ranking["nombre"].str.contains(
+                            empresa_q, case=False, na=False) |
+                        ranking["nif"].fillna("").str.contains(
+                            empresa_q, case=False, na=False))
+                ranking = ranking[mask]
+
+            st.dataframe(
+                ranking.drop(columns=["empresa_key"]),
+                use_container_width=True, hide_index=True, height=350,
+                column_config={
+                    "nombre": st.column_config.TextColumn("Empresa",
+                                                           width="large"),
+                    "nif": st.column_config.TextColumn("NIF/CIF",
+                                                        width="small"),
+                    "variantes": st.column_config.NumberColumn("Variantes nombre"),
+                    "contratos": st.column_config.NumberColumn("Contratos"),
+                    "importe_total": st.column_config.NumberColumn(
+                        "Importe €", format="%.0f €"),
+                    "organos": st.column_config.NumberColumn("Órganos"),
+                    "ultima": st.column_config.DateColumn("Última adj."),
+                },
+            )
+
+            # ── Drill-down por empresa ───────────────────────────────────
+            st.divider()
+            st.subheader("Drill-down por empresa(s)")
+            opciones_df = ranking[["nombre", "empresa_key"]].head(200)
+            opciones = opciones_df["nombre"].tolist()
+            empresas_sel_dd = st.multiselect(
+                "Selecciona una o varias empresas",
+                options=opciones,
+                placeholder="Empieza a escribir…",
+                key="drill_down_empresas",
+            )
+            if empresas_sel_dd:
+                keys_dd = opciones_df[
+                    opciones_df["nombre"].isin(empresas_sel_dd)
+                ]["empresa_key"].tolist()
+                sub_dd = adj_ci[adj_ci["empresa_key"].isin(keys_dd)].copy()
+
+                cE1, cE2, cE3, cE4 = st.columns(4)
+                cE1.metric("Empresas", len(empresas_sel_dd))
+                cE2.metric("Contratos", len(sub_dd))
+                cE3.metric("Importe total",
+                            fmt_eur(sub_dd["importe_adjudicado"].sum()))
+                cE4.metric("Órganos distintos",
+                            sub_dd["organo_contratacion"].nunique())
+
+                if len(empresas_sel_dd) > 1:
+                    comp_dd = (sub_dd.groupby("empresa_key")
+                                 .agg(nombre=("nombre_canonico", "first"),
+                                      contratos=("id", "count"),
+                                      importe=("importe_adjudicado", "sum"))
+                                 .reset_index(drop=True)
+                                 .sort_values("importe", ascending=False))
+                    cV1, cV2 = st.columns(2)
+                    with cV1:
+                        fig = px.bar(comp_dd.sort_values("importe"),
+                                      x="importe", y="nombre",
+                                      orientation="h",
+                                      template=PLOTLY_TEMPLATE,
+                                      color="contratos",
+                                      color_continuous_scale="YlGn",
+                                      labels={"importe": "Importe €",
+                                              "nombre": "",
+                                              "contratos": "Contratos"})
+                        fig.update_layout(height=350,
+                                          margin=dict(t=10, b=10, l=10, r=10))
+                        st.plotly_chart(fig, use_container_width=True)
+                    with cV2:
+                        if sub_dd["fecha_adjudicacion"].notna().any():
+                            evo = (sub_dd.dropna(subset=["fecha_adjudicacion"])
+                                      .assign(mes=lambda x: x["fecha_adjudicacion"]
+                                              .dt.to_period("M").dt.to_timestamp())
+                                      .groupby(["mes", "nombre_canonico"])
+                                      ["importe_adjudicado"].sum()
+                                      .reset_index()
+                                      .rename(columns={"nombre_canonico": "nombre"}))
+                            fig = px.line(evo, x="mes", y="importe_adjudicado",
+                                          color="nombre", markers=True,
+                                          template=PLOTLY_TEMPLATE,
+                                          color_discrete_sequence=COLOR_SEQUENCE,
+                                          labels={"mes": "",
+                                                  "importe_adjudicado": "Importe €"})
+                            fig.update_layout(height=350,
+                                              margin=dict(t=10, b=10, l=10, r=10),
+                                              legend=dict(orientation="h", y=-0.2))
+                            st.plotly_chart(fig, use_container_width=True)
+
+                # Listado de proyectos
+                st.markdown("##### Proyectos adjudicados")
+                for empresa in empresas_sel_dd:
+                    key = opciones_df[
+                        opciones_df["nombre"] == empresa]["empresa_key"].iloc[0]
+                    emp_proy = sub_dd[sub_dd["empresa_key"] == key]
+                    if len(empresas_sel_dd) > 1:
+                        st.markdown(f"**{empresa}** "
+                                      f"({len(emp_proy)} contratos · "
+                                      f"{fmt_eur(emp_proy['importe_adjudicado'].sum())})")
+                    for _, row in emp_proy.sort_values(
+                            "importe_adjudicado", ascending=False).iterrows():
+                        url = row.get("url_lic") or "#"
+                        baja = row.get("baja_pct")
+                        baja_txt = f"{baja:.1f}% baja" if pd.notna(baja) else "—"
+                        n_of = row.get("n_ofertas_recibidas")
+                        n_of_txt = f"{int(n_of)} ofertas" if pd.notna(n_of) else "—"
+                        fecha_adj = (row["fecha_adjudicacion"].date()
+                                       if pd.notna(row["fecha_adjudicacion"])
+                                       else "—")
+                        st.markdown(
+                            f'<div class="top-card">'
+                            f'<div class="amount">'
+                            f'{fmt_eur(row["importe_adjudicado"])}</div>'
+                            f'<div class="title"><a href="{url}" target="_blank" '
+                            f'style="color:#E0E0E0;text-decoration:none">'
+                            f'{(row["titulo"] or "")[:120]}</a></div>'
+                            f'<div class="meta">'
+                            f'{row.get("organo_contratacion","—")} · '
+                            f'Adj: {fecha_adj} · {baja_txt} · {n_of_txt}'
+                            f'</div></div>',
+                            unsafe_allow_html=True,
+                        )
+
+# ─── Pipeline & Alertas ────────────────────────────────────────────────────
+if page == "Pipeline & Alertas":
+    st.subheader("Pipeline & Alertas")
+    st.caption(
+        "Previsión de re-licitaciones, contratos próximos a vencer y "
+        "ventanas de oportunidad comercial.")
+
+    adj_rv = load_adjudicaciones()
+    if adj_rv.empty or df.empty:
+        st.info("Sin datos de adjudicación disponibles.")
+    else:
+        from dashboard.forecast import (build_forecast_df,
+                                         to_months, estimate_end_date)
+
+        # ── Configuración ────────────────────────────────────────────────
+        cRV1, cRV2, cRV3, cRV4 = st.columns(4)
+        with cRV1:
+            rv_horizonte = st.slider("Horizonte (meses)", 1, 36, 18,
+                                      key="rv_horizonte")
+        with cRV2:
+            rv_ant = st.slider("Anticipación alerta (meses)", 1, 12, 6,
+                                key="rv_ant")
+        with cRV3:
+            rv_imp_min = st.number_input("Importe mínimo (€)", min_value=0,
+                                          value=0, step=50000,
+                                          key="rv_imp_min")
+        with cRV4:
+            rv_solo_mant = st.checkbox("Solo Mantenimiento", value=False,
+                                        key="rv_solo_mant",
+                                        help="Desmarcar para ver todos los tipos")
+
+        fc_rv = build_forecast_df(df, adj_rv,
+                                   meses_anticipacion=rv_ant,
+                                   solo_mantenimiento=rv_solo_mant)
+
+        if fc_rv.empty or fc_rv["fecha_fin_estimada"].isna().all():
+            st.info("Sin suficientes datos de duración / fecha_fin para construir el radar.")
+        else:
+            hoy_rv = pd.Timestamp.utcnow().tz_localize(None)
+            horiz_fin = hoy_rv + pd.DateOffset(months=rv_horizonte)
+
+            oport = fc_rv[
+                (fc_rv["fecha_fin_estimada"] >= hoy_rv) &
+                (fc_rv["fecha_fin_estimada"] <= horiz_fin)
+            ].copy()
+
+            if rv_imp_min > 0:
+                oport = oport[oport["importe"].fillna(0) >= rv_imp_min]
+
+            if "adjudicatarios" in oport.columns:
+                oport = oport.rename(
+                    columns={"adjudicatarios": "adjudicatario_actual"})
+
+            # ── KPIs ─────────────────────────────────────────────────────
+            en_ventana = oport[oport["relicit_inicio"] <= hoy_rv]
+            kv1, kv2, kv3, kv4 = st.columns(4)
+            kv1.markdown(kpi_card("Oportunidades detectadas",
+                                   f"{len(oport):,}",
+                                   delta=f"próx. {rv_horizonte} meses",
+                                   icon="🎯"), unsafe_allow_html=True)
+            kv2.markdown(kpi_card("Importe en juego",
+                                   fmt_eur(oport["importe"].sum(skipna=True)),
+                                   icon="💰"), unsafe_allow_html=True)
+            kv3.markdown(kpi_card("Ya en ventana de alerta",
+                                   f"{len(en_ventana):,}",
+                                   delta="actuar ahora",
+                                   delta_up=False, icon="🔴"),
+                          unsafe_allow_html=True)
+            kv4.markdown(kpi_card("Importe en ventana",
+                                   fmt_eur(en_ventana["importe"].sum(
+                                       skipna=True)),
+                                   icon="🚨"), unsafe_allow_html=True)
+
+            st.markdown("")
+
+            # ── Distribución horizonte + Volumen trimestral ──────────────
+            cFc1, cFc2 = st.columns(2)
+            with cFc1:
+                st.subheader("Distribución por horizonte temporal")
+                ef = (fc_rv.dropna(subset=["estado_forecast"])
+                         .groupby("estado_forecast", observed=True)
+                         .agg(n=("id_externo", "count"),
+                              importe=("importe", "sum"))
+                         .reset_index())
+                if not ef.empty:
+                    fig = px.bar(ef, x="estado_forecast", y="n",
+                                  template=PLOTLY_TEMPLATE,
+                                  color="importe",
+                                  color_continuous_scale="Greens",
+                                  labels={"estado_forecast": "",
+                                          "n": "Contratos",
+                                          "importe": "Importe €"})
+                    fig.update_layout(height=380,
+                                       margin=dict(t=20, b=10, l=10, r=10))
+                    st.plotly_chart(fig, use_container_width=True)
+
+            with cFc2:
+                st.subheader("Volumen previsto por trimestre")
+                qf = oport.dropna(subset=["fecha_fin_estimada"]).copy()
+                if not qf.empty:
+                    qf["trimestre"] = (qf["fecha_fin_estimada"]
+                                         .dt.to_period("Q").dt.to_timestamp())
+                    qg = (qf.groupby("trimestre")
+                              .agg(n=("id_externo", "count"),
+                                   importe=("importe", "sum"))
+                              .reset_index())
+                    fig = px.bar(qg, x="trimestre", y="importe",
+                                  template=PLOTLY_TEMPLATE,
+                                  color_discrete_sequence=["#86BC25"],
+                                  labels={"trimestre": "",
+                                          "importe": "Importe que vence (€)"},
+                                  hover_data=["n"])
+                    fig.update_layout(height=380,
+                                       margin=dict(t=20, b=10, l=10, r=10))
+                    st.plotly_chart(fig, use_container_width=True)
+
+            # ── Matriz urgencia × valor ──────────────────────────────────
+            st.subheader("Matriz urgencia × valor del contrato")
+            if not oport.empty:
+                oport["dias_restantes"] = (
+                    oport["fecha_fin_estimada"] - hoy_rv).dt.days
+                oport_s = oport.dropna(subset=["importe", "dias_restantes"])
+                if not oport_s.empty:
+                    oport_s = oport_s.copy()
+                    oport_s["label"] = oport_s["titulo"].str[:50]
+                    oport_s["prorroga"] = (
+                        oport_s["prorroga_descripcion"].notna()
+                        if "prorroga_descripcion" in oport_s.columns
+                        else False)
+                    fig = px.scatter(
+                        oport_s, x="dias_restantes", y="importe",
+                        color="estado_forecast",
+                        size="importe",
+                        hover_name="label",
+                        hover_data={"organo_contratacion": True,
+                                    "dias_restantes": True,
+                                    "importe": ":,.0f"},
+                        template=PLOTLY_TEMPLATE,
+                        color_discrete_sequence=COLOR_SEQUENCE,
+                        log_y=True,
+                        labels={"dias_restantes": "Días hasta vencimiento",
+                                "importe": "Importe licitación (€, log)",
+                                "estado_forecast": "Estado"})
+                    # Línea vertical: inicio de ventana alerta
+                    fig.add_vline(
+                        x=rv_ant * 30, line_dash="dash",
+                        line_color="#E21836",
+                        annotation_text=f"Ventana alerta ({rv_ant}m)",
+                        annotation_position="top right")
+                    fig.update_layout(height=480,
+                                      margin=dict(t=20, b=10, l=10, r=10))
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("Cuadrante **izquierda-arriba**: contratos grandes "
+                               "con vencimiento inminente — máxima prioridad.")
+
+            # ── Timeline Gantt ───────────────────────────────────────────
+            st.subheader("Timeline de contratos (top 30 por valor)")
+            tl_rv = oport.dropna(
+                subset=["inicio_efectivo", "fecha_fin_estimada"]).copy()
+            if not tl_rv.empty:
+                tl_rv = tl_rv.nlargest(30, "importe")
+                tl_rv["label"] = tl_rv["titulo"].str[:55]
+                adj_col = ("adjudicatario_actual"
+                            if "adjudicatario_actual" in tl_rv.columns
+                            else None)
+                hover_extra = ({"adjudicatario_actual": True}
+                                if adj_col else {})
+                fig = px.timeline(
+                    tl_rv,
+                    x_start="inicio_efectivo",
+                    x_end="fecha_fin_estimada",
+                    y="label", color="importe",
+                    color_continuous_scale="YlGn",
+                    template=PLOTLY_TEMPLATE,
+                    hover_data={"organo_contratacion": True,
+                                "importe": ":,.0f",
+                                **hover_extra})
+                fig.add_shape(
+                    type="line",
+                    x0=hoy_rv.isoformat(), x1=hoy_rv.isoformat(),
+                    y0=0, y1=1, yref="paper",
+                    line=dict(color="#E21836", dash="dash", width=2))
+                fig.add_annotation(
+                    x=hoy_rv.isoformat(), y=1, yref="paper",
+                    text="Hoy", showarrow=False,
+                    font=dict(color="#E21836"), yanchor="bottom")
+                fig.update_yaxes(autorange="reversed")
+                fig.update_layout(height=620,
+                                  margin=dict(t=20, b=10, l=10, r=10),
+                                  yaxis_title="")
+                st.plotly_chart(fig, use_container_width=True)
+
+            # ── Tabla de oportunidades ───────────────────────────────────
+            st.subheader("Listado de oportunidades")
+            cols_rv = ["fecha_fin_estimada", "relicit_inicio", "titulo",
+                        "organo_contratacion", "ccaa", "importe",
+                        "estado_forecast"]
+            if "adjudicatario_actual" in oport.columns:
+                cols_rv.append("adjudicatario_actual")
+            if "prorroga_descripcion" in oport.columns:
+                cols_rv.append("prorroga_descripcion")
+            if "url" in oport.columns:
+                cols_rv.append("url")
+            cols_rv = [c for c in cols_rv if c in oport.columns]
+            st.dataframe(
+                oport[cols_rv].sort_values("fecha_fin_estimada"),
+                use_container_width=True, hide_index=True, height=480,
+                column_config={
+                    "fecha_fin_estimada": st.column_config.DateColumn(
+                        "Fin estimado"),
+                    "relicit_inicio": st.column_config.DateColumn(
+                        "Inicio ventana"),
+                    "titulo": st.column_config.TextColumn(
+                        "Título", width="large"),
+                    "organo_contratacion": st.column_config.TextColumn(
+                        "Órgano", width="medium"),
+                    "ccaa": st.column_config.TextColumn("CCAA",
+                                                          width="small"),
+                    "importe": st.column_config.NumberColumn(
+                        "Importe lic.", format="%.0f €"),
+                    "estado_forecast": st.column_config.TextColumn("Estado"),
+                    "adjudicatario_actual": st.column_config.TextColumn(
+                        "Adjudicatario actual", width="medium"),
+                    "prorroga_descripcion": st.column_config.TextColumn(
+                        "Prórroga"),
+                    "url": st.column_config.LinkColumn(
+                        "Enlace", display_text="🔗"),
+                },
+            )
 
 # ── Footer ─────────────────────────────────────────────────────────────
 st.divider()

@@ -189,6 +189,9 @@ def upsert_licitaciones(items: Iterable[Licitacion]) -> tuple[int, int]:
             ).fetchone()
             data = asdict(lic)
             keys = list(data.keys())
+            for k in keys:
+                if not _VALID_COLUMN_NAME.match(k):
+                    raise ValueError(f"Nombre de columna no válido: {k!r}")
             vals = list(data.values())
             cols = ", ".join(keys)
             placeholders = ", ".join("?" for _ in keys)
@@ -216,18 +219,18 @@ def replace_adjudicaciones(licitacion_id: str,
         for adj in items:
             data = asdict(adj)
             keys = list(data.keys())
+            for k in keys:
+                if not _VALID_COLUMN_NAME.match(k):
+                    raise ValueError(f"Nombre de columna no válido: {k!r}")
             vals = list(data.values())
             cols = ", ".join(keys)
             placeholders = ", ".join("?" for _ in keys)
-            try:
-                c.execute(
-                    f"INSERT INTO adjudicaciones ({cols}) "
-                    f"VALUES ({placeholders})",
-                    vals,
-                )
-                n += 1
-            except Exception:
-                pass  # duplicado por UNIQUE constraint
+            c.execute(
+                f"INSERT OR IGNORE INTO adjudicaciones ({cols}) "
+                f"VALUES ({placeholders})",
+                vals,
+            )
+            n += 1
     return n
 
 

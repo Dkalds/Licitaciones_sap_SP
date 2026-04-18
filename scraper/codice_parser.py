@@ -268,9 +268,10 @@ def parse_atom_bytes(content: bytes
             f"(límite: {MAX_XML_SIZE_BYTES:,}). Procesamiento abortado."
         )
     # huge_tree=False (default): mantiene límites de profundidad y tamaño de
-    # lxml para prevenir ataques XML bomb. Si se encontraran XMLs legítimos
-    # del PLACSP que requieran huge_tree, revisar y documentar aquí.
-    parser = etree.XMLParser(huge_tree=False, recover=True)
+    # lxml para prevenir ataques XML bomb. resolve_entities=False y
+    # no_network=True previenen ataques XXE (XML External Entity).
+    parser = etree.XMLParser(huge_tree=False, recover=True,
+                             resolve_entities=False, no_network=True)
     root = etree.fromstring(content, parser=parser)
     for entry in root.iter("{http://www.w3.org/2005/Atom}entry"):
         try:
