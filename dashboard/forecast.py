@@ -29,9 +29,11 @@ def estimate_end_date(start: pd.Timestamp | None,
     """Devuelve la fecha de fin estimada. Prefiere fecha_fin explícita."""
     if fecha_fin_explicit is not None and pd.notna(fecha_fin_explicit):
         return fecha_fin_explicit
-    if start is None or pd.isna(start) or not duracion_meses:
+    if start is None or pd.isna(start):
         return None
-    return start + pd.DateOffset(months=int(round(duracion_meses)))
+    if duracion_meses is None or pd.isna(duracion_meses) or duracion_meses <= 0:
+        return None
+    return start + pd.DateOffset(months=int(round(float(duracion_meses))))
 
 
 def build_forecast_df(licitaciones: pd.DataFrame,

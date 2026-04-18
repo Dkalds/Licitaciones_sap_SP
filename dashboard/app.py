@@ -499,14 +499,14 @@ with tab_adjudicatarios:
     else:
         # ── KPIs ──
         n_adj = len(adj)
-        n_empresas = adj["nif"].dropna().nunique() or adj["nombre"].nunique()
+        n_empresas = adj["empresa_key"].dropna().nunique()
         importe_adj_total = adj["importe_adjudicado"].sum(skipna=True)
         pct_pyme = ((adj["es_pyme"] == 1).sum() /
                      adj["es_pyme"].notna().sum() * 100
                      if adj["es_pyme"].notna().any() else 0)
 
-        # Top empresa por importe
-        top_emp = (adj.groupby("nombre")["importe_adjudicado"].sum()
+        # Top empresa por importe (agrupado por empresa_key)
+        top_emp = (adj.groupby("nombre_canonico")["importe_adjudicado"].sum()
                        .sort_values(ascending=False))
         top_nombre = top_emp.index[0] if len(top_emp) else "—"
         top_importe = top_emp.iloc[0] if len(top_emp) else 0
@@ -551,10 +551,11 @@ with tab_adjudicatarios:
         cT1, cT2 = st.columns(2)
         with cT1:
             st.subheader("Top 15 empresas por importe adjudicado")
-            top_imp = (adj.groupby("nombre")
+            top_imp = (adj.groupby("nombre_canonico")
                           .agg(importe=("importe_adjudicado", "sum"),
                                n=("id", "count"))
                           .reset_index()
+                          .rename(columns={"nombre_canonico": "nombre"})
                           .sort_values("importe", ascending=False)
                           .head(15))
             if not top_imp.empty:
@@ -571,10 +572,11 @@ with tab_adjudicatarios:
                 st.plotly_chart(fig, use_container_width=True)
         with cT2:
             st.subheader("Top 15 empresas por nº contratos")
-            top_n = (adj.groupby("nombre")
+            top_n = (adj.groupby("nombre_canonico")
                         .agg(n=("id", "count"),
                              importe=("importe_adjudicado", "sum"))
                         .reset_index()
+                        .rename(columns={"nombre_canonico": "nombre"})
                         .sort_values("n", ascending=False)
                         .head(15))
             if not top_n.empty:
@@ -615,7 +617,7 @@ with tab_adjudicatarios:
 
         with cP2:
             st.subheader("Concentración (Pareto)")
-            top_cum = (adj.groupby("nombre")["importe_adjudicado"]
+            top_cum = (adj.groupby("nombre_canonico")["importe_adjudicado"]
                           .sum().sort_values(ascending=False))
             if len(top_cum) > 0:
                 cum_pct = (top_cum.cumsum() / top_cum.sum() * 100).values
@@ -659,7 +661,7 @@ with tab_adjudicatarios:
                        .groupby("ccaa")
                        .agg(n=("id", "count"),
                             importe=("importe_adjudicado", "sum"),
-                            empresas=("nombre", "nunique"))
+                            empresas=("empresa_key", "nunique"))
                        .reset_index()
                        .sort_values("importe", ascending=False))
         if not ccaa_adj.empty:
@@ -684,12 +686,15 @@ with tab_adjudicatarios:
             placeholder="Ej: TELEFONICA, INDRA, B12345678...",
             key="empresa_search",
         )
-        ranking = (adj.groupby(["nombre", "nif"], dropna=False)
-                       .agg(contratos=("id", "count"),
+        ranking = (adj.groupby("empresa_key", dropna=False)
+                       .agg(nombre=("nombre_canonico", "first"),
+                            nif=("nif_norm", "first"),
+                            variantes=("nombre", "nunique"),
+                            contratos=("id", "count"),
                             importe_total=("importe_adjudicado", "sum"),
                             organos=("organo_contratacion", "nunique"),
                             ultima=("fecha_adjudicacion", "max"))
-                       .reset_index()
+                       .reset_index(drop=True)
                        .sort_values("importe_total", ascending=False))
         if empresa_q:
             mask = (ranking["nombre"].str.contains(
@@ -705,6 +710,9 @@ with tab_adjudicatarios:
                                                        width="large"),
                 "nif": st.column_config.TextColumn("NIF/CIF",
                                                     width="small"),
+                "variantes": st.column_config.NumberColumn(
+                    "Variantes nombre",
+                    help="Nº de grafías distintas agrupadas"),
                 "contratos": st.column_config.NumberColumn("Contratos"),
                 "importe_total": st.column_config.NumberColumn(
                     "Importe €", format="%.0f €"),
@@ -717,14 +725,17 @@ with tab_adjudicatarios:
         # ── Drill-down: seleccionar varias empresas para comparar ──
         st.divider()
         st.subheader("🔬 Drill-down por empresa(s)")
-        opciones = ranking["nombre"].head(200).tolist()
+        opciones_df = ranking[["nombre", "empresa_key"]].head(200)
+        opciones = opciones_df["nombre"].tolist()
         empresas_sel = st.multiselect(
             "Selecciona una o varias empresas",
             options=opciones,
             placeholder="Empieza a escribir o elige del listado…",
         )
         if empresas_sel:
-            sub = adj[adj["nombre"].isin(empresas_sel)].copy()
+            keys_sel = opciones_df[
+                opciones_df["nombre"].isin(empresas_sel)]["empresa_key"].tolist()
+            sub = adj[adj["empresa_key"].isin(keys_sel)].copy()
 
             # KPIs agregados
             cE1, cE2, cE3, cE4 = st.columns(4)
@@ -736,13 +747,14 @@ with tab_adjudicatarios:
                         sub["organo_contratacion"].nunique())
 
             # Tabla comparativa
-            comp = (sub.groupby("nombre")
-                       .agg(contratos=("id", "count"),
+            comp = (sub.groupby("empresa_key")
+                       .agg(nombre=("nombre_canonico", "first"),
+                            contratos=("id", "count"),
                             importe=("importe_adjudicado", "sum"),
                             organos=("organo_contratacion", "nunique"),
                             primera=("fecha_adjudicacion", "min"),
                             ultima=("fecha_adjudicacion", "max"))
-                       .reset_index()
+                       .reset_index(drop=True)
                        .sort_values("importe", ascending=False))
             st.dataframe(
                 comp, use_container_width=True, hide_index=True,
@@ -781,9 +793,11 @@ with tab_adjudicatarios:
                         evo = (sub.dropna(subset=["fecha_adjudicacion"])
                                   .assign(mes=lambda x: x["fecha_adjudicacion"]
                                           .dt.to_period("M").dt.to_timestamp())
-                                  .groupby(["mes", "nombre"])
+                                  .groupby(["mes", "nombre_canonico"])
                                   ["importe_adjudicado"].sum()
-                                  .reset_index())
+                                  .reset_index()
+                                  .rename(columns={
+                                      "nombre_canonico": "nombre"}))
                         fig = px.line(
                             evo, x="mes", y="importe_adjudicado",
                             color="nombre", markers=True,
@@ -801,7 +815,9 @@ with tab_adjudicatarios:
             # Listado de proyectos (agrupado por empresa si son varias)
             st.markdown("##### 📋 Proyectos adjudicados")
             for empresa in empresas_sel:
-                empresa_proyectos = sub[sub["nombre"] == empresa]
+                key = opciones_df[
+                    opciones_df["nombre"] == empresa]["empresa_key"].iloc[0]
+                empresa_proyectos = sub[sub["empresa_key"] == key]
                 if len(empresas_sel) > 1:
                     st.markdown(f"**🏢 {empresa}** "
                                   f"({len(empresa_proyectos)} contratos · "

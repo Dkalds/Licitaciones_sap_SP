@@ -13,6 +13,7 @@ from dashboard.classifiers import (
     nuts_to_ccaa,
     tipo_contrato_label,
 )
+from dashboard.normalize import normalize_company, normalize_nif
 
 
 @st.cache_data(ttl=300, show_spinner="Cargando datos…")
@@ -75,6 +76,21 @@ def load_adjudicaciones() -> pd.DataFrame:
     # Detectar UTEs por nombre
     df["es_ute"] = df["nombre"].str.contains(
         r"\bU\.?T\.?E\.?\b", case=False, na=False, regex=True)
+
+    # Normalización para deduplicar
+    df["nombre_norm"] = df["nombre"].apply(normalize_company)
+    df["nif_norm"] = df["nif"].apply(normalize_nif)
+    # empresa_key: prioridad NIF normalizado; fallback nombre normalizado
+    df["empresa_key"] = df["nif_norm"].where(
+        df["nif_norm"].notna() & (df["nif_norm"] != ""),
+        df["nombre_norm"])
+
+    # Nombre canónico = el más frecuente dentro de cada empresa_key
+    canon = (df.dropna(subset=["empresa_key"])
+                .groupby("empresa_key")["nombre"]
+                .agg(lambda s: s.value_counts().index[0])
+                .to_dict())
+    df["nombre_canonico"] = df["empresa_key"].map(canon).fillna(df["nombre"])
     return df
 
 
