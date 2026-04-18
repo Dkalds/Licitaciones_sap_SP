@@ -1,6 +1,7 @@
 """Dashboard Streamlit — Licitaciones SAP del Sector Público."""
 from __future__ import annotations
 
+import html
 import sys
 from io import BytesIO
 from pathlib import Path
@@ -85,6 +86,16 @@ def kpi_card(label: str, value: str, delta: str | None = None,
     return (f'<div class="kpi-card"><span class="icon">{icon}</span>'
             f'<div class="label">{label}</div>'
             f'<div class="value">{value}</div>{delta_html}</div>')
+
+
+def safe_url(url: str | None) -> str:
+    """Valida que la URL use un esquema seguro. Previene javascript: URIs."""
+    if not url or not isinstance(url, str):
+        return "#"
+    stripped = url.strip()
+    if stripped.lower().startswith(("http://", "https://")):
+        return stripped
+    return "#"
 
 
 def to_excel_bytes(df: pd.DataFrame) -> bytes:
@@ -231,18 +242,23 @@ with tab_resumen:
         top = (df.dropna(subset=["importe"])
                  .nlargest(10, "importe"))
         for _, row in top.iterrows():
-            url = row.get("url") or "#"
+            url = safe_url(row.get("url"))
+            titulo = html.escape(str(row["titulo"])[:120])
+            organo = html.escape(str(row.get("organo_contratacion") or "—"))
+            estado = html.escape(str(row.get("estado_desc") or "—"))
+            tipo = html.escape(str(row.get("tipo_proyecto") or "—"))
+            modulos = html.escape(str(row.get("modulos_str") or "—"))
             st.markdown(
                 f'<div class="top-card">'
                 f'<div class="amount">{fmt_eur(row["importe"])}</div>'
                 f'<div class="title"><a href="{url}" target="_blank" '
                 f'style="color:#E8ECF1;text-decoration:none">'
-                f'{row["titulo"][:120]}</a></div>'
+                f'{titulo}</a></div>'
                 f'<div class="meta">'
-                f'{row.get("organo_contratacion","—")} · '
-                f'{row.get("estado_desc","—")} · '
-                f'{row.get("tipo_proyecto","—")} · '
-                f'<b>{row.get("modulos_str","—")}</b></div></div>',
+                f'{organo} · '
+                f'{estado} · '
+                f'{tipo} · '
+                f'<b>{modulos}</b></div></div>',
                 unsafe_allow_html=True,
             )
     with cR:

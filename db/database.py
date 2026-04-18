@@ -133,21 +133,13 @@ class Licitacion:
 
 @contextmanager
 def connect() -> Iterator:
-    kwargs: dict = {}
     if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN:
-        kwargs["sync_url"] = TURSO_DATABASE_URL
-        kwargs["auth_token"] = TURSO_AUTH_TOKEN
-        db_path = str(TURSO_LOCAL_DB)
+        conn = libsql.connect(TURSO_DATABASE_URL, auth_token=TURSO_AUTH_TOKEN)
     else:
-        db_path = str(DB_PATH)
-    conn = libsql.connect(db_path, **kwargs)
-    if kwargs:
-        conn.sync()
+        conn = libsql.connect(str(DB_PATH))
     try:
         yield conn
         conn.commit()
-        if kwargs:
-            conn.sync()
     finally:
         conn.close()
 

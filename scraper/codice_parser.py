@@ -15,6 +15,7 @@ import re
 from typing import Iterator
 from lxml import etree
 
+from config import MAX_XML_SIZE_BYTES
 from db.database import Adjudicacion, Licitacion
 from scraper.filters import matches_sap
 from dashboard.classifiers import nuts_to_ccaa
@@ -261,7 +262,15 @@ def parse_entry(entry) -> Licitacion | None:
 def parse_atom_bytes(content: bytes
                       ) -> Iterator[tuple[Licitacion, list[Adjudicacion]]]:
     """Itera (licitación SAP, adjudicaciones) encontradas en un ATOM."""
-    parser = etree.XMLParser(huge_tree=True, recover=True)
+    if len(content) > MAX_XML_SIZE_BYTES:
+        raise ValueError(
+            f"Fichero XML demasiado grande: {len(content):,} bytes "
+            f"(límite: {MAX_XML_SIZE_BYTES:,}). Procesamiento abortado."
+        )
+    # huge_tree=False (default): mantiene límites de profundidad y tamaño de
+    # lxml para prevenir ataques XML bomb. Si se encontraran XMLs legítimos
+    # del PLACSP que requieran huge_tree, revisar y documentar aquí.
+    parser = etree.XMLParser(huge_tree=False, recover=True)
     root = etree.fromstring(content, parser=parser)
     for entry in root.iter("{http://www.w3.org/2005/Atom}entry"):
         try:

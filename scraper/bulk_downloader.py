@@ -21,6 +21,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from config import (
     DOWNLOADS_DIR,
+    MAX_DOWNLOAD_SIZE_BYTES,
     REQUEST_DELAY_SECONDS,
     REQUEST_TIMEOUT,
     USER_AGENT,
@@ -43,8 +44,24 @@ def _download(url: str, dest: Path) -> Path:
     with requests.get(url, headers=headers, stream=True,
                       timeout=REQUEST_TIMEOUT) as r:
         r.raise_for_status()
+        content_length = r.headers.get("Content-Length")
+        if content_length is not None:
+            size = int(content_length)
+            if size > MAX_DOWNLOAD_SIZE_BYTES:
+                raise ValueError(
+                    f"Descarga rechazada: Content-Length {size:,} bytes "
+                    f"supera el límite de {MAX_DOWNLOAD_SIZE_BYTES:,} bytes."
+                )
         with open(dest, "wb") as f:
+            downloaded = 0
             for chunk in r.iter_content(chunk_size=8192):
+                downloaded += len(chunk)
+                if downloaded > MAX_DOWNLOAD_SIZE_BYTES:
+                    dest.unlink(missing_ok=True)
+                    raise ValueError(
+                        f"Descarga abortada: tamaño real supera "
+                        f"{MAX_DOWNLOAD_SIZE_BYTES:,} bytes."
+                    )
                 f.write(chunk)
     return dest
 
