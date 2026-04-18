@@ -73,12 +73,23 @@ def download_month(year: int, month: int,
     dest = DOWNLOADS_DIR / f"placsp_{year}{month:02d}.zip"
 
     if dest.exists() and not force:
-        log.info("Ya existe %s, saltando", dest.name)
-        return dest
+        # Verificar que el archivo existente es un ZIP válido
+        if zipfile.is_zipfile(dest):
+            log.info("Ya existe %s, saltando", dest.name)
+            return dest
+        else:
+            log.warning("Archivo corrupto %s, re-descargando", dest.name)
+            dest.unlink()
 
     try:
         time.sleep(REQUEST_DELAY_SECONDS)
-        return _download(url, dest)
+        _download(url, dest)
+        # Validar que lo descargado es realmente un ZIP
+        if not zipfile.is_zipfile(dest):
+            log.warning("El archivo descargado para %s-%02d no es un ZIP válido, ignorando", year, month)
+            dest.unlink(missing_ok=True)
+            return None
+        return dest
     except requests.HTTPError as e:
         if e.response is not None and e.response.status_code == 404:
             log.warning("No publicado aún: %s-%02d", year, month)
