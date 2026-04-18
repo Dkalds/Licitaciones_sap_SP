@@ -2,7 +2,215 @@
 
 Aplicación que extrae automáticamente las licitaciones publicadas en la
 **Plataforma de Contratación del Sector Público (PLACSP)** relacionadas
-con proyectos **SAP** y muestra estadísticas en un dashboard.
+con proyectos **SAP** y muestra estadísticas en un dashboard interactivo.
+
+## Arquitectura
+
+```
+┌─────────────────────────┐       ┌──────────────────┐
+│ PLACSP open data (ZIP)  │──────▶│ scraper/pipeline │
+│ hacienda.gob.es         │       │ (descarga+parse) │
+└─────────────────────────┘       └────────┬─────────┘
+                                           │
+                                  filtra SAP keywords
+                                           ▼
+                          ┌────────────────────────────┐
+                          │  SQLite local / Turso cloud │
+                          │  (upsert idempotente)       │
+                          └──────────────┬─────────────┘
+                                         │
+                          ┌──────────────┼─────────────┐
+                          ▼                            ▼
+                ┌──────────────────┐         ┌──────────────────┐
+                │ Task Scheduler   │         │ Streamlit UI     │
+                │ (diario 03:00)   │         │ KPIs + gráficos  │
+                └──────────────────┘         └──────────────────┘
+```
+
+## Estructura
+
+```
+licitaciones-sap/
+├── config.py                # Keywords SAP, rutas, URLs, límites
+├── requirements.txt
+├── .env                     # Variables de entorno (NO commitear)
+├── db/
+│   └── database.py          # SQLite/Turso + upsert + log extracciones
+├── scraper/
+│   ├── bulk_downloader.py   # Descarga ZIPs mensuales del PLACSP
+│   ├── codice_parser.py     # Parser ATOM/CODICE (UBL)
+│   ├── filters.py           # Detección de keywords SAP
+│   └── pipeline.py          # Orquestación end-to-end
+├── dashboard/
+│   ├── app.py               # Streamlit dashboard (punto de entrada)
+│   ├── auth.py              # Autenticación con rate limiting y timeout
+│   ├── data_loader.py       # Carga y enriquecimiento de datos
+│   ├── classifiers.py       # CPV, módulos, tipo de proyecto
+│   ├── normalize.py         # Normalización de empresas y NIFs
+│   ├── forecast.py          # Predicción de tendencias
+│   ├── components/          # Cards, KPIs, navegación, tablas
+│   ├── filters/             # Estado de filtros y sidebar
+│   ├── pages/               # Una página por sección del dashboard
+│   ├── theme/               # Tokens de diseño, CSS, plantilla Plotly
+│   └── utils/               # Exportación, formato, seguridad
+├── scheduler/
+│   ├── run_update.py        # Entry point cron/Task Scheduler
+│   └── register_task_windows.ps1
+└── data/                    # BD SQLite + ZIPs descargados (gitignored)
+```
+
+## Instalación
+
+```bash
+cd licitaciones-sap
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+```
+
+## Configuración
+
+Crea un archivo `.env` en la raíz del proyecto con las siguientes variables:
+
+```dotenv
+# Base de datos (elige una opción)
+
+# Opción A — SQLite local (por defecto, sin configuración adicional)
+# DB_PATH=data/licitaciones.db
+
+# Opción B — Turso cloud (réplica embebida local + sync automático)
+TURSO_DATABASE_URL=libsql://<tu-db>.turso.io
+TURSO_AUTH_TOKEN=<token-con-permisos-rw>
+
+# Dashboard — dejar vacío para deshabilitar la autenticación
+DASHBOARD_PASSWORD=<contraseña-segura>
+```
+
+> **Importante:** `.env` está en `.gitignore`. Nunca lo commitees.
+> Si usas Streamlit Cloud, define estas variables en
+> *App settings → Secrets* (`secrets.toml`).
+
+## Uso
+
+### 1. Primera carga histórica (ej. desde enero 2024)
+```bash
+python -m scheduler.run_update --backfill 2024 1
+```
+
+### 2. Actualización incremental (últimos 3 meses)
+```bash
+python -m scheduler.run_update
+```
+Es **idempotente**: usa upsert por `id_externo`, ejecutarlo varias veces
+no duplica registros.
+
+### 3. Lanzar el dashboard
+```bash
+streamlit run dashboard/app.py
+```
+Abre http://localhost:8501
+
+### 4. Programar actualización automática (Windows)
+```powershell
+# Como administrador:
+.\scheduler\register_task_windows.ps1
+```
+Crea una tarea diaria a las 03:00. Ver en *Programador de tareas* o:
+```powershell
+Get-ScheduledTask -TaskName LicitacionesSAP-Update
+```
+
+## Seguridad
+
+### Autenticación del dashboard
+Cuando `DASHBOARD_PASSWORD` está definida, el dashboard muestra una
+pantalla de login con las siguientes protecciones:
+
+- **Rate limiting progresivo:** tras 3 intentos fallidos se activa un
+  bloqueo de `2^n` segundos (máximo 60 s), visible en pantalla.
+- **Timeout de sesión:** las sesiones expiran automáticamente tras
+  **8 horas** de inactividad. Configurable con `SESSION_TIMEOUT_SECONDS`
+  en `dashboard/auth.py`.
+- **Comparación segura:** se usa `hmac.compare_digest` para prevenir
+  ataques de temporización.
+
+### Protecciones generales
+| Área | Medida |
+|---|---|
+| Inyección SQL | Queries parametrizadas con `?`; nombres de columna validados con regex |
+| XSS | Todo HTML dinámico escapado con `html.escape()` |
+| Validación de URLs | `safe_url()` rechaza esquemas `javascript:` |
+| XXE (XML) | Parser lxml con `resolve_entities=False`, `no_network=True` |
+| Tamaño de descarga | ZIP ≤ 200 MB, XML ≤ 150 MB por fichero |
+| Secretos | Cargados exclusivamente desde variables de entorno / `st.secrets` |
+
+### Rotación de credenciales
+Si sospechas que el token de Turso está comprometido:
+1. Panel Turso → tu base de datos → **Settings → Tokens** → Revocar
+2. Generar nuevo token y actualizar `.env`
+
+## Personalizar las keywords SAP
+
+Editar `config.py` → `SAP_KEYWORDS`. Por defecto incluye:
+SAP, S/4HANA, ABAP, Fiori, SuccessFactors, Ariba, Concur, módulos
+funcionales (FI, CO, MM, SD, HCM, …), etc.
+
+## Marco legal
+
+Los datos se reutilizan al amparo de:
+- **Ley 37/2007** de reutilización de información del sector público
+- **RD 1495/2011**
+- **Ley 9/2017** de Contratos del Sector Público
+
+Fuente oficial: Plataforma de Contratación del Sector Público
+(https://contrataciondelestado.es).
+
+Esta aplicación **no suplanta** a la fuente oficial; sirve únicamente
+para fines de análisis estadístico.
+
+## Limitaciones conocidas
+
+- La URL de los ZIP mensuales (`BULK_URL_TEMPLATE` en
+  `scraper/bulk_downloader.py`) puede cambiar; verificar contra
+  hacienda.gob.es si fallan las descargas.
+- El parser CODICE asume estructura estándar; si algún XML viene
+  malformado, los entries problemáticos se loggean y se omiten.
+- Los datos de meses muy recientes pueden tardar en publicarse
+  (típicamente el ZIP del mes M aparece a mediados del mes M+1).
+
+## Despliegue (Streamlit Cloud + Turso)
+
+Setup recomendado, sin servidores propios:
+
+- **Dashboard** en [Streamlit Community Cloud](https://share.streamlit.io)
+- **Base de datos** en [Turso](https://turso.tech) (SQLite cloud, tier
+  gratuito suficiente para este volumen)
+- **Scraping diario** en GitHub Actions o Task Scheduler local
+
+### 1. Conectar el repo a Streamlit Cloud
+1. https://share.streamlit.io → "New app"
+2. Repo: tu fork, branch `master`, main file: `dashboard/app.py`
+3. *App settings → Secrets*: añadir `TURSO_DATABASE_URL`,
+   `TURSO_AUTH_TOKEN` y `DASHBOARD_PASSWORD`
+4. Deploy. Se instalará desde `requirements.txt` automáticamente.
+
+### 2. Cron diario en GitHub Actions
+Configura un workflow `.github/workflows/scrape.yml` que:
+- Se ejecute a las 06:00 UTC
+- Lance `python -m scheduler.run_update --months 3`
+- Tenga acceso a `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` como secrets
+  del repositorio
+
+Para añadir los secrets: Repo → **Settings → Secrets and variables →
+Actions** → "New repository secret".
+
+## Próximos pasos sugeridos
+
+- Añadir alertas (email/Slack) cuando aparezca una licitación SAP
+  por encima de cierto importe.
+- Exportación programada a Excel/CSV por correo.
+- Autenticación multi-usuario con roles si pasa a uso interno de empresa.
+
 
 ## Arquitectura
 

@@ -136,5 +136,5 @@ REQUEST_TIMEOUT = 30
 REQUEST_DELAY_SECONDS = 1.5  # delay entre requests para no saturar
 
 # Límites de tamaño para descargas (defensa contra recursos excesivos)
-MAX_DOWNLOAD_SIZE_BYTES = 1 * 1024 * 1024 * 1024   # 1 GB por ZIP mensual
-MAX_XML_SIZE_BYTES = 500 * 1024 * 1024              # 500 MB por fichero XML
+MAX_DOWNLOAD_SIZE_BYTES = 200 * 1024 * 1024   # 200 MB por ZIP mensual
+MAX_XML_SIZE_BYTES = 150 * 1024 * 1024        # 150 MB por fichero XML
