@@ -4,13 +4,21 @@
 # Uso: .\register_task_windows.ps1
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$Python = "python"  # Ajustar si usas venv: "$ProjectRoot\.venv\Scripts\python.exe"
+# Usar el Python del venv para aislar dependencias
+$Python = "$ProjectRoot\.venv\Scripts\python.exe"
 $Script = "$ProjectRoot\scheduler\run_update.py"
 $LogFile = "$ProjectRoot\data\scheduler.log"
+$RotateScript = {
+    # Rotación simple: si el log supera 5 MB, lo renombramos y empezamos uno nuevo
+    if ((Get-Item $LogFile -ErrorAction SilentlyContinue).Length -gt 5MB) {
+        $archive = $LogFile -replace '\.log$', "_$(Get-Date -Format 'yyyyMMdd').log"
+        Rename-Item -Path $LogFile -NewName $archive -Force
+    }
+}
 
 $Action = New-ScheduledTaskAction `
-    -Execute $Python `
-    -Argument "`"$Script`" >> `"$LogFile`" 2>&1" `
+    -Execute "powershell.exe" `
+    -Argument "-NoProfile -NonInteractive -Command `"& { $RotateScript }; & '$Python' '$Script' >> '$LogFile' 2>&1`"" `
     -WorkingDirectory $ProjectRoot
 
 $Trigger = New-ScheduledTaskTrigger -Daily -At 3:00am

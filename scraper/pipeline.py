@@ -15,37 +15,56 @@ log = logging.getLogger(__name__)
 
 def process_month(year: int, month: int, force: bool = False) -> dict:
     """Procesa un mes: descarga ZIP, parsea, filtra SAP, persiste."""
-    zip_path = download_month(year, month, force=force)
+    try:
+        zip_path = download_month(year, month, force=force)
+    except Exception:
+        log.exception("Error descargando %d-%02d", year, month)
+        return {"year": year, "month": month, "status": "error_descarga"}
+
     if zip_path is None:
         return {"year": year, "month": month, "status": "no_publicado"}
 
     sap_encontradas = []
     adj_por_lic: dict[str, list] = {}
+    entries_error = 0
     for filename, content in iter_xml_files(zip_path):
         log.info("Parseando %s", filename)
-        for lic, adjudicaciones in parse_atom_bytes(content):
-            sap_encontradas.append(lic)
-            if adjudicaciones:
-                adj_por_lic[lic.id_externo] = adjudicaciones
+        try:
+            for lic, adjudicaciones in parse_atom_bytes(content):
+                sap_encontradas.append(lic)
+                if adjudicaciones:
+                    adj_por_lic[lic.id_externo] = adjudicaciones
+        except Exception:
+            log.exception("Error parseando fichero %s del ZIP %d-%02d",
+                          filename, year, month)
+            entries_error += 1
 
-    nuevas, actualizadas = upsert_licitaciones(sap_encontradas)
+    try:
+        nuevas, actualizadas = upsert_licitaciones(sap_encontradas)
+    except Exception:
+        log.exception("Error persistiendo licitaciones de %d-%02d", year, month)
+        return {"year": year, "month": month, "status": "error_persistencia"}
 
     n_adj = 0
     for lic_id, adjs in adj_por_lic.items():
-        n_adj += replace_adjudicaciones(lic_id, adjs)
+        try:
+            n_adj += replace_adjudicaciones(lic_id, adjs)
+        except Exception:
+            log.exception("Error persistiendo adjudicaciones de %s", lic_id)
 
     log_extraccion(
         fuente=f"bulk_{year}{month:02d}",
         nuevas=nuevas,
         actualizadas=actualizadas,
         total=len(sap_encontradas),
-        notas=f"SAP:{len(sap_encontradas)} adj:{n_adj}",
+        notas=f"SAP:{len(sap_encontradas)} adj:{n_adj} errors:{entries_error}",
     )
     return {
         "year": year, "month": month, "status": "ok",
         "sap_matches": len(sap_encontradas),
         "adjudicaciones": n_adj,
         "nuevas": nuevas, "actualizadas": actualizadas,
+        "entries_error": entries_error,
     }
 
 

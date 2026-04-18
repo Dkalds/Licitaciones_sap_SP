@@ -1,5 +1,6 @@
 """Configuración global del proyecto."""
 import os
+import warnings
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -14,15 +15,27 @@ DB_PATH = Path(os.environ.get("DB_PATH", DATA_DIR / "licitaciones.db"))
 # Contraseña para proteger el dashboard (vacío = sin autenticación)
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
 
-# Turso (libSQL cloud) — si están definidas, se usa réplica embebida
+# Turso (libSQL cloud) — ambas variables son necesarias para activar Turso
 TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL", "")
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
-# Archivo local distinto para la réplica embebida de Turso
 TURSO_LOCAL_DB = Path(os.environ.get(
     "TURSO_LOCAL_DB", DATA_DIR / "licitaciones_replica.db"))
 
-DATA_DIR.mkdir(exist_ok=True)
-DOWNLOADS_DIR.mkdir(exist_ok=True)
+# Validar que Turso se configura con URL y token simultáneamente
+if bool(TURSO_DATABASE_URL) ^ bool(TURSO_AUTH_TOKEN):
+    warnings.warn(
+        "Configuración Turso incompleta: se necesitan TURSO_DATABASE_URL y "
+        "TURSO_AUTH_TOKEN juntas. Se usará SQLite local como fallback.",
+        stacklevel=1,
+    )
+    TURSO_DATABASE_URL = ""
+    TURSO_AUTH_TOKEN = ""
+
+
+def ensure_data_dirs() -> None:
+    """Crea los directorios de datos si no existen. Llamar explícitamente."""
+    DATA_DIR.mkdir(exist_ok=True)
+    DOWNLOADS_DIR.mkdir(exist_ok=True)
 
 # Palabras clave para filtrar licitaciones SAP
 SAP_KEYWORDS = [

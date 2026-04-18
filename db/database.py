@@ -169,6 +169,8 @@ def _migrate(conn) -> None:
 
 
 def init_db() -> None:
+    from config import ensure_data_dirs
+    ensure_data_dirs()
     with connect() as c:
         for stmt in SCHEMA.split(";"):
             stmt = stmt.strip()

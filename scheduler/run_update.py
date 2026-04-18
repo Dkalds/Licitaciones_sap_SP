@@ -33,15 +33,23 @@ def main() -> int:
     )
     log = logging.getLogger("run_update")
 
-    if args.backfill:
-        results = backfill(args.backfill[0], args.backfill[1])
-    else:
-        results = update_recent(args.months)
+    try:
+        if args.backfill:
+            results = backfill(args.backfill[0], args.backfill[1])
+        else:
+            results = update_recent(args.months)
+    except Exception:
+        log.exception("Error fatal en el pipeline de actualización")
+        return 1
 
+    failed = [r for r in results if r.get("status") not in ("ok", "no_publicado")]
     total_nuevas = sum(r.get("nuevas", 0) for r in results)
     total_act = sum(r.get("actualizadas", 0) for r in results)
     log.info("Resumen: %d nuevas, %d actualizadas. Total en BD: %d",
              total_nuevas, total_act, count_licitaciones())
+    if failed:
+        log.error("%d mes(es) con error: %s", len(failed), failed)
+        return 1
     return 0
 
 
