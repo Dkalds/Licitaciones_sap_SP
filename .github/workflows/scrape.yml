@@ -7,7 +7,7 @@ on:
   workflow_dispatch:  # permite lanzarlo a mano desde la pestaña Actions
 
 permissions:
-  contents: write  # necesario para commitear la BD actualizada
+  contents: read  # solo lectura — ya no commiteamos la BD
 
 concurrency:
   group: scrape
@@ -34,16 +34,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run scraper (last 3 months)
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
         run: python -m scheduler.run_update --months 3
-
-      - name: Commit updated database
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/licitaciones.db
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "chore(data): scheduled scrape $(date -u +'%Y-%m-%d')"
-            git push
-          fi

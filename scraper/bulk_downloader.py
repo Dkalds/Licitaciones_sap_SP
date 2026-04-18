@@ -25,6 +25,7 @@ from config import (
     REQUEST_DELAY_SECONDS,
     REQUEST_TIMEOUT,
     USER_AGENT,
+    ensure_data_dirs,
 )
 
 log = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ def _download(url: str, dest: Path) -> Path:
 def download_month(year: int, month: int,
                    force: bool = False) -> Path | None:
     """Descarga el ZIP mensual. Devuelve la ruta o None si no existe."""
+    ensure_data_dirs()
     url = BULK_URL_TEMPLATE.format(year=year, month=month)
     dest = DOWNLOADS_DIR / f"placsp_{year}{month:02d}.zip"
 
