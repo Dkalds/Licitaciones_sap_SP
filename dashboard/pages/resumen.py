@@ -1,8 +1,6 @@
 """Página Resumen — top licitaciones, distribución y mercado."""
 from __future__ import annotations
 
-import html
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -25,16 +23,16 @@ def render(ctx: PageContext) -> None:
         top = (df.dropna(subset=["importe"])
                  .nlargest(10, "importe"))
         for _, row in top.iterrows():
-            organo = html.escape(str(row.get("organo_contratacion") or "—"))
-            estado = html.escape(str(row.get("estado_desc") or "—"))
-            tipo = html.escape(str(row.get("tipo_proyecto") or "—"))
-            modulos = html.escape(str(row.get("modulos_str") or "—"))
             top_card(
                 amount=fmt_eur(row["importe"]),
                 title=str(row["titulo"]),
-                meta=f'{organo} · {estado} · {tipo} · <b>{modulos}</b>',
+                meta=(
+                    f'{row.get("organo_contratacion") or "—"} · '
+                    f'{row.get("estado_desc") or "—"} · '
+                    f'{row.get("tipo_proyecto") or "—"}'
+                ),
                 url=row.get("url"),
-                raw_meta=True,
+                highlight=str(row.get("modulos_str") or "—"),
             )
     with cR:
         st.subheader("Distribución por estado")

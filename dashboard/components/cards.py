@@ -14,21 +14,25 @@ def top_card(
     meta: str,
     *,
     url: str | None = None,
-    raw_meta: bool = False,
+    highlight: str | None = None,
 ) -> None:
     """Renderiza una top-card con importe, título enlazado y metadatos.
 
     Args:
         amount: Texto del importe (ya formateado, e.g. "1.23 M€").
         title: Título de la licitación (se escapa y trunca a 120 chars).
-        meta: Línea de metadatos. Si `raw_meta=True` se inserta sin escapar
-              (útil cuando el caller ya construyó HTML con <b>).
+        meta: Línea de metadatos. Siempre se escapa automáticamente.
         url: URL de la licitación. Se valida con safe_url.
-        raw_meta: Si True, `meta` se inserta como HTML sin escapar.
+        highlight: Si se proporciona, se añade en negrita al final del meta
+                   (también escapado automáticamente).
     """
     href = safe_url(url)
     safe_title = _html.escape(str(title)[:120])
-    meta_html = meta if raw_meta else _html.escape(str(meta))
+    meta_escaped = _html.escape(str(meta))
+    if highlight is not None:
+        meta_html = f"{meta_escaped} · <b>{_html.escape(str(highlight))}</b>"
+    else:
+        meta_html = meta_escaped
 
     st.markdown(
         f'<div class="top-card">'
