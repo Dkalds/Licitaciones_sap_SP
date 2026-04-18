@@ -694,7 +694,7 @@ with tab_adjudicatarios:
                             importe_total=("importe_adjudicado", "sum"),
                             organos=("organo_contratacion", "nunique"),
                             ultima=("fecha_adjudicacion", "max"))
-                       .reset_index(drop=True)
+                       .reset_index()
                        .sort_values("importe_total", ascending=False))
         if empresa_q:
             mask = (ranking["nombre"].str.contains(
@@ -704,7 +704,8 @@ with tab_adjudicatarios:
             ranking = ranking[mask]
 
         st.dataframe(
-            ranking, use_container_width=True, hide_index=True,
+            ranking.drop(columns=["empresa_key"]),
+            use_container_width=True, hide_index=True,
             column_config={
                 "nombre": st.column_config.TextColumn("Empresa",
                                                        width="large"),
@@ -962,7 +963,7 @@ with tab_prevision:
                              "importe": ":,.0f",
                              "relicit_inicio": True,
                              "label": False})
-            fig.add_vline(x=hoy, line_dash="dash",
+            fig.add_vline(x=hoy.isoformat(), line_dash="dash",
                            line_color="#EF4444", annotation_text="Hoy")
             fig.update_yaxes(autorange="reversed")
             fig.update_layout(height=600,
