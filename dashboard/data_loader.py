@@ -1,0 +1,88 @@
+"""Carga y enriquecimiento de datos desde SQLite, con caché Streamlit."""
+from __future__ import annotations
+
+import pandas as pd
+import streamlit as st
+
+from db.database import connect
+from dashboard.classifiers import (
+    cpv_label,
+    detect_modules,
+    detect_project_type,
+    estado_label,
+    nuts_to_ccaa,
+    tipo_contrato_label,
+)
+
+
+@st.cache_data(ttl=300, show_spinner="Cargando datos…")
+def load_dataframe() -> pd.DataFrame:
+    with connect() as c:
+        df = pd.read_sql_query("SELECT * FROM licitaciones", c)
+    if df.empty:
+        return df
+
+    df["fecha_publicacion"] = pd.to_datetime(
+        df["fecha_publicacion"], errors="coerce", utc=True,
+    )
+    df["importe"] = pd.to_numeric(df["importe"], errors="coerce")
+    df["mes"] = df["fecha_publicacion"].dt.to_period("M").dt.to_timestamp()
+    df["anyo"] = df["fecha_publicacion"].dt.year
+
+    # Enriquecimiento (clasificadores)
+    text_blob = (df["titulo"].fillna("") + " " +
+                 df["descripcion"].fillna(""))
+    df["modulos"] = text_blob.apply(detect_modules)
+    df["modulos_str"] = df["modulos"].apply(lambda l: ", ".join(l))
+    df["tipo_proyecto"] = text_blob.apply(detect_project_type)
+    df["cpv_desc"] = df["cpv"].apply(cpv_label)
+    df["estado_desc"] = df["estado"].apply(estado_label)
+    df["tipo_contrato_desc"] = df["tipo_contrato"].apply(tipo_contrato_label)
+
+    # Para registros antiguos sin ccaa pero con nuts, calcular en runtime
+    if "ccaa" in df.columns:
+        mask = df["ccaa"].isna() & df["nuts_code"].notna()
+        df.loc[mask, "ccaa"] = df.loc[mask, "nuts_code"].apply(nuts_to_ccaa)
+
+    return df
+
+
+@st.cache_data(ttl=300, show_spinner="Cargando adjudicaciones…")
+def load_adjudicaciones() -> pd.DataFrame:
+    with connect() as c:
+        df = pd.read_sql_query(
+            "SELECT a.*, l.titulo, l.organo_contratacion, l.url AS url_lic, "
+            "       l.fecha_publicacion, l.descripcion AS descripcion_lic "
+            "FROM adjudicaciones a "
+            "LEFT JOIN licitaciones l ON l.id_externo = a.licitacion_id",
+            c,
+        )
+    if df.empty:
+        return df
+
+    df["fecha_adjudicacion"] = pd.to_datetime(
+        df["fecha_adjudicacion"], errors="coerce")
+    df["fecha_publicacion"] = pd.to_datetime(
+        df["fecha_publicacion"], errors="coerce", utc=True)
+    for col in ("importe_adjudicado", "importe_pagable",
+                 "oferta_minima", "oferta_maxima"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    if "ccaa" in df.columns:
+        mask = df["ccaa"].isna() & df["nuts_code"].notna()
+        df.loc[mask, "ccaa"] = df.loc[mask, "nuts_code"].apply(nuts_to_ccaa)
+
+    # Detectar UTEs por nombre
+    df["es_ute"] = df["nombre"].str.contains(
+        r"\bU\.?T\.?E\.?\b", case=False, na=False, regex=True)
+    return df
+
+
+@st.cache_data(ttl=300)
+def load_extracciones() -> pd.DataFrame:
+    with connect() as c:
+        df = pd.read_sql_query(
+            "SELECT * FROM extracciones ORDER BY fecha DESC", c)
+    if not df.empty:
+        df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+    return df
