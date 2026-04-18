@@ -61,17 +61,24 @@ def build_forecast_df(licitaciones: pd.DataFrame,
         lambda r: to_months(r.get("duracion_valor"),
                              r.get("duracion_unidad")), axis=1)
 
-    # Sacar fecha de adjudicación (mín por licitación)
+    # Sacar datos de adjudicación agregados por licitación
     if not adjudicaciones.empty:
-        adj_dates = (adjudicaciones.dropna(subset=["fecha_adjudicacion"])
-                       .groupby("licitacion_id")["fecha_adjudicacion"]
-                       .min().reset_index()
-                       .rename(columns={
-                           "fecha_adjudicacion": "fecha_adj_calc",
-                           "licitacion_id": "id_externo"}))
-        df = df.merge(adj_dates, on="id_externo", how="left")
+        adj_agg = (adjudicaciones
+                     .groupby("licitacion_id")
+                     .agg(fecha_adj_calc=("fecha_adjudicacion", "min"),
+                          importe_adjudicado_total=(
+                              "importe_adjudicado", "sum"),
+                          n_ofertas=("n_ofertas_recibidas", "max"),
+                          adjudicatarios=("nombre",
+                              lambda s: ", ".join(s.dropna().unique()[:3])))
+                     .reset_index()
+                     .rename(columns={"licitacion_id": "id_externo"}))
+        df = df.merge(adj_agg, on="id_externo", how="left")
     else:
         df["fecha_adj_calc"] = pd.NaT
+        df["importe_adjudicado_total"] = None
+        df["n_ofertas"] = None
+        df["adjudicatarios"] = None
 
     df["fecha_inicio_dt"] = pd.to_datetime(
         df["fecha_inicio"], errors="coerce")
@@ -102,6 +109,13 @@ def build_forecast_df(licitaciones: pd.DataFrame,
     hoy = pd.Timestamp.utcnow().tz_localize(None)
     df["dias_hasta_fin"] = (df["fecha_fin_estimada"] - hoy).dt.days
     df["meses_hasta_fin"] = df["dias_hasta_fin"] / 30.4375
+
+    # % baja del adjudicatario vs importe de licitación
+    importe_lic = pd.to_numeric(df.get("importe"), errors="coerce")
+    importe_adj = pd.to_numeric(
+        df.get("importe_adjudicado_total"), errors="coerce")
+    df["baja_pct"] = ((1 - importe_adj / importe_lic) * 100).where(
+        (importe_lic > 0) & importe_adj.notna())
 
     df["estado_forecast"] = pd.cut(
         df["dias_hasta_fin"],

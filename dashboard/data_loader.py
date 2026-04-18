@@ -53,7 +53,8 @@ def load_adjudicaciones() -> pd.DataFrame:
     with connect() as c:
         df = pd.read_sql_query(
             "SELECT a.*, l.titulo, l.organo_contratacion, l.url AS url_lic, "
-            "       l.fecha_publicacion, l.descripcion AS descripcion_lic "
+            "       l.fecha_publicacion, l.descripcion AS descripcion_lic, "
+            "       l.importe AS importe_licitacion "
             "FROM adjudicaciones a "
             "LEFT JOIN licitaciones l ON l.id_externo = a.licitacion_id",
             c,
@@ -66,8 +67,13 @@ def load_adjudicaciones() -> pd.DataFrame:
     df["fecha_publicacion"] = pd.to_datetime(
         df["fecha_publicacion"], errors="coerce", utc=True)
     for col in ("importe_adjudicado", "importe_pagable",
-                 "oferta_minima", "oferta_maxima"):
+                 "oferta_minima", "oferta_maxima", "importe_licitacion"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # % baja del adjudicatario (licitación → adjudicación)
+    df["baja_pct"] = ((1 - df["importe_adjudicado"] / df["importe_licitacion"])
+                       * 100).where(
+        (df["importe_licitacion"] > 0) & df["importe_adjudicado"].notna())
 
     if "ccaa" in df.columns:
         mask = df["ccaa"].isna() & df["nuts_code"].notna()

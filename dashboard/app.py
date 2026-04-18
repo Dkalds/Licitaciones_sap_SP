@@ -815,6 +815,8 @@ with tab_adjudicatarios:
 
             # Listado de proyectos (agrupado por empresa si son varias)
             st.markdown("##### 📋 Proyectos adjudicados")
+            st.caption("ℹ️ La plataforma solo publica el adjudicatario, "
+                        "no el listado de licitadores que se presentaron.")
             for empresa in empresas_sel:
                 key = opciones_df[
                     opciones_df["nombre"] == empresa]["empresa_key"].iloc[0]
@@ -826,6 +828,19 @@ with tab_adjudicatarios:
                 for _, row in empresa_proyectos.sort_values(
                         "importe_adjudicado", ascending=False).iterrows():
                     url = row.get("url_lic") or "#"
+                    baja = row.get("baja_pct")
+                    baja_txt = (f"📉 {baja:.1f}% baja"
+                                  if pd.notna(baja) else "—")
+                    imp_lic = row.get("importe_licitacion")
+                    imp_lic_txt = (f"Lic: {fmt_eur(imp_lic)} · "
+                                     if pd.notna(imp_lic) else "")
+                    n_of = row.get("n_ofertas_recibidas")
+                    n_of_txt = (f"{int(n_of)} ofertas"
+                                  if pd.notna(n_of) else "ofertas: —")
+                    fecha_adj = (row["fecha_adjudicacion"].date()
+                                   if pd.notna(row["fecha_adjudicacion"])
+                                   else "—")
+                    pyme_txt = "· PYME" if row.get("es_pyme") == 1 else ""
                     st.markdown(
                         f'<div class="top-card">'
                         f'<div class="amount">'
@@ -835,9 +850,9 @@ with tab_adjudicatarios:
                         f'{(row["titulo"] or "")[:120]}</a></div>'
                         f'<div class="meta">'
                         f'{row.get("organo_contratacion","—")} · '
-                        f'Adj: {row["fecha_adjudicacion"].date() if pd.notna(row["fecha_adjudicacion"]) else "—"} · '
-                        f'{row.get("n_ofertas_recibidas","—")} ofertas · '
-                        f'{"PYME" if row.get("es_pyme")==1 else ""}'
+                        f'Adj: {fecha_adj} · '
+                        f'{imp_lic_txt}{baja_txt} · '
+                        f'{n_of_txt} {pyme_txt}'
                         f'</div></div>',
                         unsafe_allow_html=True,
                     )
@@ -979,17 +994,15 @@ with tab_prevision:
 
         # Listado de oportunidades
         st.subheader("🎯 Próximas oportunidades de re-licitación")
+        st.caption("⚠️ La plataforma solo publica el adjudicatario, no el "
+                    "listado de empresas que se presentaron. Sí publica el "
+                    "número total de ofertas recibidas.")
         op = en_horizonte.sort_values("fecha_fin_estimada").copy()
+        op = op.rename(columns={"adjudicatarios": "adjudicatario_actual"})
         if not op.empty:
-            adj_resumen = (adj_full.groupby("licitacion_id")["nombre"]
-                                .apply(lambda s: ", ".join(s.dropna().unique()[:3]))
-                                .reset_index()
-                                .rename(columns={"nombre": "adjudicatario_actual",
-                                                   "licitacion_id": "id_externo"}))
-            op = op.merge(adj_resumen, on="id_externo", how="left")
-
             cols_op = ["fecha_fin_estimada", "relicit_inicio", "titulo",
                         "organo_contratacion", "ccaa", "importe",
+                        "importe_adjudicado_total", "baja_pct", "n_ofertas",
                         "adjudicatario_actual", "estado_forecast", "url"]
             cols_op = [c for c in cols_op if c in op.columns]
             st.dataframe(
@@ -1006,7 +1019,16 @@ with tab_prevision:
                     "ccaa": st.column_config.TextColumn("CCAA",
                                                           width="small"),
                     "importe": st.column_config.NumberColumn(
-                        "Importe", format="%.0f €"),
+                        "Importe lic.", format="%.0f €"),
+                    "importe_adjudicado_total": st.column_config.NumberColumn(
+                        "Importe adj.", format="%.0f €"),
+                    "baja_pct": st.column_config.NumberColumn(
+                        "% Baja", format="%.1f%%",
+                        help="Diferencia entre importe licitación y "
+                              "adjudicación"),
+                    "n_ofertas": st.column_config.NumberColumn(
+                        "Nº ofertas",
+                        help="Empresas que presentaron oferta"),
                     "adjudicatario_actual": st.column_config.TextColumn(
                         "Adjudicatario actual", width="medium"),
                     "estado_forecast": st.column_config.TextColumn(
