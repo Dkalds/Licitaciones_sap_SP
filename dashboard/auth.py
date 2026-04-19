@@ -84,3 +84,4 @@ def check_password() -> bool:
             _record_failed_attempt()
             st.error("Contraseña incorrecta.")
     st.stop()
+    return False  # unreachable, but satisfies mypy

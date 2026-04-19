@@ -111,7 +111,7 @@ def _send_smtp(
     ``to_addr`` sobreescribe la variable de entorno ``ALERT_EMAIL_TO``
     cuando se especifica (útil para notificaciones por destinatario).
     """
-    recipient = (to_addr or os.environ.get("ALERT_EMAIL_TO", "")).strip()
+    recipient = (to_addr or os.environ.get("ALERT_EMAIL_TO") or "").strip()
     user = os.environ.get("ALERT_SMTP_USER", "").strip()
     password = os.environ.get("ALERT_SMTP_PASSWORD", "").strip()
     host = os.environ.get("ALERT_SMTP_HOST", "smtp.gmail.com").strip()

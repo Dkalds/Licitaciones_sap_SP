@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -110,7 +111,7 @@ def render(ctx: PageContext) -> None:
         return
 
     def _any_match(row: pd.Series) -> bool:
-        record = row.to_dict()
+        record: dict[str, Any] = row.to_dict()
         return any(matches_licitacion(e, record) for e in entries)
 
     mask = df.apply(_any_match, axis=1)

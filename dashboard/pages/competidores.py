@@ -91,7 +91,7 @@ def render(ctx: PageContext) -> None:
         return float(s.value_counts(normalize=True).iloc[0] * 100)
 
     metr_ci["dep_cliente_pct"] = [
-        _dep_cliente(k)
+        _dep_cliente(str(k))
         for k in sub_ci.groupby("empresa_key").groups.keys()
         if k in top_empresas.index
     ][: len(metr_ci)]

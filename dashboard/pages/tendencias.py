@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pandas as pd
 import plotly.express as px
 import streamlit as st
 
@@ -60,7 +61,7 @@ def render(ctx: PageContext) -> None:
             .size()
             .reset_index(name="n")
         )
-        hm.columns = ["mes", "estado", "n"]
+        hm.columns = pd.Index(["mes", "estado", "n"])
         pivot = hm.pivot(index="estado", columns="mes", values="n").fillna(0)
         fig = px.imshow(
             pivot,

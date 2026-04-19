@@ -66,13 +66,13 @@ class TestNormalizeCompany:
 class TestNormalizeNif:
     # ── Normalización básica ─────────────────────────────────────────────
     def test_elimina_espacios(self):
-        assert normalize_nif("A 12345678") == "A12345678"
+        assert normalize_nif("A 12345678") == "A12345678"  # pragma: allowlist secret
 
     def test_elimina_guiones(self):
-        assert normalize_nif("A-12345678") == "A12345678"
+        assert normalize_nif("A-12345678") == "A12345678"  # pragma: allowlist secret
 
     def test_elimina_puntos(self):
-        assert normalize_nif("A.12345678") == "A12345678"
+        assert normalize_nif("A.12345678") == "A12345678"  # pragma: allowlist secret
 
     def test_mayusculas(self):
         assert normalize_nif("a12345678") == "A12345678"

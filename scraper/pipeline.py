@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from dateutil.relativedelta import relativedelta
+from dateutil.relativedelta import relativedelta  # type: ignore[import-untyped]
 
 from db.database import (
     init_db,

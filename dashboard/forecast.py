@@ -65,7 +65,8 @@ def build_forecast_df(
         return df
 
     df["duracion_meses"] = df.apply(
-        lambda r: to_months(r.get("duracion_valor"), r.get("duracion_unidad")), axis=1
+        lambda r: to_months(r.get("duracion_valor"), r.get("duracion_unidad")),
+        axis=1,  # type: ignore[call-overload]
     )
 
     # Sacar datos de adjudicación agregados por licitación
@@ -103,7 +104,7 @@ def build_forecast_df(
         lambda r: estimate_end_date(
             r["inicio_efectivo"], r["duracion_meses"], r["fecha_fin_explicit_dt"]
         ),
-        axis=1,
+        axis=1,  # type: ignore[call-overload]
     )
 
     # Ventana de re-licitación
@@ -116,8 +117,8 @@ def build_forecast_df(
     df["meses_hasta_fin"] = df["dias_hasta_fin"] / 30.4375
 
     # % baja del adjudicatario vs importe de licitación
-    importe_lic = pd.to_numeric(df.get("importe"), errors="coerce")
-    importe_adj = pd.to_numeric(df.get("importe_adjudicado_total"), errors="coerce")
+    importe_lic = pd.to_numeric(df["importe"], errors="coerce")
+    importe_adj = pd.to_numeric(df["importe_adjudicado_total"], errors="coerce")
     df["baja_pct"] = ((1 - importe_adj / importe_lic) * 100).where(
         (importe_lic > 0) & importe_adj.notna()
     )
