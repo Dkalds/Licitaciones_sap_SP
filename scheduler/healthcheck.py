@@ -108,6 +108,10 @@ def main() -> int:
             **{k: v for k, v in result["info"].items() if not isinstance(v, dict)},
         )
 
+    if args.alert:
+        # Alerts are sent via email; exit 0 so CI does not treat health status as a failure.
+        return 0
+
     return {"healthy": 0, "degraded": 1, "critical": 2}.get(result["status"], 2)
 
 
