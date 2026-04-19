@@ -1,4 +1,5 @@
 """Tests para dashboard/normalize.py — normalización de empresas y NIFs."""
+
 from __future__ import annotations
 
 from dashboard.normalize import normalize_company, normalize_nif

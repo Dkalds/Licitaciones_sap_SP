@@ -3,6 +3,7 @@
 Nota: streamlit no tiene modo de test nativo; mockeamos st.session_state
 con un dict simple y las funciones de UI con mocks no-op.
 """
+
 from __future__ import annotations
 
 import time
@@ -30,6 +31,7 @@ def _import_auth():
     import importlib
 
     import dashboard.auth as auth_mod
+
     importlib.reload(auth_mod)
     return auth_mod
 
@@ -102,8 +104,7 @@ class TestRateLimiting:
 
         # El stop NO fue por lockout — no hubo warning de espera
         warning_calls = [str(c) for c in st_mock.warning.call_args_list]
-        assert not any("lockout" in c.lower() or "espera" in c.lower()
-                        for c in warning_calls)
+        assert not any("lockout" in c.lower() or "espera" in c.lower() for c in warning_calls)
 
     def test_record_failed_attempt_incrementa_contador(self, mock_streamlit):
         _st_mock, session = mock_streamlit

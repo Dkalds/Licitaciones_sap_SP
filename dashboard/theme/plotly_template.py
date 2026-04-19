@@ -2,6 +2,7 @@
 
 Reemplaza el `_premium` layout definido inline en app.py:138-158.
 """
+
 from __future__ import annotations
 
 import plotly.graph_objects as go
@@ -16,25 +17,30 @@ def build_plotly_template(t: Tokens = TOKENS) -> go.layout.Template:
     c = t.colors
     ty = t.type
     layout = go.Layout(
-        font=dict(family=ty.family_plotly, color=c.text_plot_body,
-                  size=ty.size_plot_body),
+        font=dict(family=ty.family_plotly, color=c.text_plot_body, size=ty.size_plot_body),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False, zeroline=False,
-                   linecolor=c.border_plot, linewidth=1,
-                   tickfont=dict(size=ty.size_plot_axis,
-                                 color=c.text_plot_axis)),
-        yaxis=dict(showgrid=False, zeroline=False,
-                   linecolor=c.border_plot, linewidth=1,
-                   tickfont=dict(size=ty.size_plot_axis,
-                                 color=c.text_plot_axis)),
+        xaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            linecolor=c.border_plot,
+            linewidth=1,
+            tickfont=dict(size=ty.size_plot_axis, color=c.text_plot_axis),
+        ),
+        yaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            linecolor=c.border_plot,
+            linewidth=1,
+            tickfont=dict(size=ty.size_plot_axis, color=c.text_plot_axis),
+        ),
         colorway=list(c.plotly_colorway),
-        hoverlabel=dict(bgcolor=c.bg_hoverlabel,
-                        bordercolor=c.border_hoverlabel,
-                        font=dict(family="Inter", size=ty.size_plot_body,
-                                  color=c.text_card_title)),
-        legend=dict(font=dict(size=ty.size_plot_axis,
-                              color=c.text_plot_body)),
+        hoverlabel=dict(
+            bgcolor=c.bg_hoverlabel,
+            bordercolor=c.border_hoverlabel,
+            font=dict(family="Inter", size=ty.size_plot_body, color=c.text_card_title),
+        ),
+        legend=dict(font=dict(size=ty.size_plot_axis, color=c.text_plot_body)),
     )
     return go.layout.Template(layout=layout)
 

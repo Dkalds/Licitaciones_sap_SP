@@ -1,4 +1,5 @@
 """Base para el sistema de páginas — PageContext y helpers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,4 +1,5 @@
 """Tests para dashboard/utils/security.py — validación de URLs."""
+
 from __future__ import annotations
 
 from dashboard.utils.security import safe_url

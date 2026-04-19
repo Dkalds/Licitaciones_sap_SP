@@ -1,4 +1,5 @@
 """Normalización de nombres de empresas para deduplicar adjudicatarios."""
+
 from __future__ import annotations
 
 import re

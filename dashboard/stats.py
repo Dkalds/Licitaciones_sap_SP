@@ -1,7 +1,9 @@
 """Cálculo de estadísticas a partir de la BD."""
+
 from __future__ import annotations
 
 import pandas as pd
+
 from db.database import connect
 
 
@@ -13,7 +15,9 @@ def load_dataframe() -> pd.DataFrame:
         df = pd.DataFrame(rows, columns=cols)
     if not df.empty:
         df["fecha_publicacion"] = pd.to_datetime(
-            df["fecha_publicacion"], errors="coerce", utc=True,
+            df["fecha_publicacion"],
+            errors="coerce",
+            utc=True,
         )
         df["importe"] = pd.to_numeric(df["importe"], errors="coerce")
     return df
@@ -21,8 +25,7 @@ def load_dataframe() -> pd.DataFrame:
 
 def kpis(df: pd.DataFrame) -> dict:
     if df.empty:
-        return {"total": 0, "importe_total": 0,
-                "importe_medio": 0, "organos": 0}
+        return {"total": 0, "importe_total": 0, "importe_medio": 0, "organos": 0}
     return {
         "total": len(df),
         "importe_total": float(df["importe"].sum(skipna=True)),
@@ -34,61 +37,63 @@ def kpis(df: pd.DataFrame) -> dict:
 def por_mes(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty or df["fecha_publicacion"].isna().all():
         return pd.DataFrame(columns=["mes", "n_licitaciones", "importe"])
-    g = (df.dropna(subset=["fecha_publicacion"])
-           .assign(mes=lambda x: x["fecha_publicacion"].dt.to_period("M").dt.to_timestamp())
-           .groupby("mes")
-           .agg(n_licitaciones=("id_externo", "count"),
-                importe=("importe", "sum"))
-           .reset_index())
+    g = (
+        df.dropna(subset=["fecha_publicacion"])
+        .assign(mes=lambda x: x["fecha_publicacion"].dt.to_period("M").dt.to_timestamp())
+        .groupby("mes")
+        .agg(n_licitaciones=("id_externo", "count"), importe=("importe", "sum"))
+        .reset_index()
+    )
     return g
 
 
 def top_organos(df: pd.DataFrame, n: int = 15) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["organo_contratacion", "n", "importe"])
-    g = (df.groupby("organo_contratacion")
-           .agg(n=("id_externo", "count"), importe=("importe", "sum"))
-           .sort_values("n", ascending=False)
-           .head(n)
-           .reset_index())
+    g = (
+        df.groupby("organo_contratacion")
+        .agg(n=("id_externo", "count"), importe=("importe", "sum"))
+        .sort_values("n", ascending=False)
+        .head(n)
+        .reset_index()
+    )
     return g
 
 
 def por_estado(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["estado", "n"])
-    return (df.groupby("estado")
-              .size()
-              .reset_index(name="n")
-              .sort_values("n", ascending=False))
+    return df.groupby("estado").size().reset_index(name="n").sort_values("n", ascending=False)
 
 
 def por_cpv(df: pd.DataFrame, n: int = 10) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["cpv", "n"])
-    return (df.groupby("cpv")
-              .size()
-              .reset_index(name="n")
-              .sort_values("n", ascending=False)
-              .head(n))
+    return df.groupby("cpv").size().reset_index(name="n").sort_values("n", ascending=False).head(n)
 
 
 # ── Nuevas funciones de KPIs ────────────────────────────────────────────
 
-def yoy_delta(df: pd.DataFrame, col: str, agg: str = "count",
-              days: int = 30) -> tuple[float, float, float]:
+
+def yoy_delta(
+    df: pd.DataFrame, col: str, agg: str = "count", days: int = 30
+) -> tuple[float, float, float]:
     """Calcula valor actual (últimos *days* días), anterior, y % cambio.
 
     Returns (valor_actual, valor_anterior, pct_cambio).
     """
     hoy = pd.Timestamp.utcnow()
     ult = df[df["fecha_publicacion"] >= (hoy - pd.Timedelta(days=days))]
-    prev = df[(df["fecha_publicacion"] < (hoy - pd.Timedelta(days=days))) &
-              (df["fecha_publicacion"] >= (hoy - pd.Timedelta(days=days * 2)))]
+    prev = df[
+        (df["fecha_publicacion"] < (hoy - pd.Timedelta(days=days)))
+        & (df["fecha_publicacion"] >= (hoy - pd.Timedelta(days=days * 2)))
+    ]
 
+    v_act: float
+    v_prev: float
     if agg == "count":
-        v_act = len(ult)
-        v_prev = len(prev)
+        v_act = float(len(ult))
+        v_prev = float(len(prev))
     elif agg == "sum":
         v_act = float(ult[col].sum(skipna=True))
         v_prev = float(prev[col].sum(skipna=True))
@@ -96,8 +101,8 @@ def yoy_delta(df: pd.DataFrame, col: str, agg: str = "count",
         v_act = float(ult[col].mean(skipna=True) or 0)
         v_prev = float(prev[col].mean(skipna=True) or 0)
     elif agg == "nunique":
-        v_act = ult[col].nunique()
-        v_prev = prev[col].nunique()
+        v_act = float(ult[col].nunique())
+        v_prev = float(prev[col].nunique())
     else:
         v_act = v_prev = 0
 
@@ -138,16 +143,17 @@ def funnel_estados(df: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for est in order:
         n = int(counts.get(est, 0))
-        rows.append({
-            "estado": est,
-            "n": n,
-            "pct": (n / total * 100) if total else 0,
-        })
+        rows.append(
+            {
+                "estado": est,
+                "n": n,
+                "pct": (n / total * 100) if total else 0,
+            }
+        )
     return pd.DataFrame(rows)
 
 
-def hhi_concentracion(adj_df: pd.DataFrame,
-                      group_col: str = "empresa_key") -> float:
+def hhi_concentracion(adj_df: pd.DataFrame, group_col: str = "empresa_key") -> float:
     """Índice Herfindahl-Hirschman (0-10000) sobre importe adjudicado."""
     if adj_df.empty or "importe_adjudicado" not in adj_df.columns:
         return 0.0
@@ -156,7 +162,7 @@ def hhi_concentracion(adj_df: pd.DataFrame,
     if total <= 0:
         return 0.0
     pct = shares / total * 100
-    return float((pct ** 2).sum())
+    return float((pct**2).sum())
 
 
 def pct_oferta_unica(adj_df: pd.DataFrame) -> float:
@@ -164,10 +170,7 @@ def pct_oferta_unica(adj_df: pd.DataFrame) -> float:
     with_data = adj_df.dropna(subset=["n_ofertas_recibidas"])
     if with_data.empty:
         return 0.0
-    return float(
-        (with_data["n_ofertas_recibidas"] == 1).sum() /
-        len(with_data) * 100
-    )
+    return float((with_data["n_ofertas_recibidas"] == 1).sum() / len(with_data) * 100)
 
 
 def media_movil(series: pd.Series, window: int = 3) -> pd.Series:

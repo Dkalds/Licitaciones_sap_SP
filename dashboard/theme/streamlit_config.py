@@ -7,13 +7,13 @@ Ejecutar como:
 El resultado incluye un banner indicando que el archivo es un output
 generado; editar a mano se perderá en la próxima regeneración.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 from textwrap import dedent
 
 from dashboard.theme.tokens import TOKENS, Tokens
-
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / ".streamlit" / "config.toml"
 
@@ -28,7 +28,9 @@ BANNER = (
 
 def render_config(t: Tokens = TOKENS) -> str:
     c = t.colors
-    return BANNER + dedent(f"""
+    return (
+        BANNER
+        + dedent(f"""
         [theme]
         base = "dark"
         primaryColor = "{c.st_primary}"
@@ -43,6 +45,7 @@ def render_config(t: Tokens = TOKENS) -> str:
         [browser]
         gatherUsageStats = false
     """).lstrip()
+    )
 
 
 def main() -> None:

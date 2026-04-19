@@ -5,51 +5,91 @@ Uso:
   python -m scheduler.run_update --backfill 2024 1   # desde ene-2024
   python -m scheduler.run_update --months 6     # últimos 6 meses
 """
+
 from __future__ import annotations
 
 import argparse
-import logging
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scraper.pipeline import backfill, update_recent
 from db.database import count_licitaciones
+from observability import (
+    AlertLevel,
+    configure_logging,
+    get_logger,
+    notify,
+)
+from scheduler.watchlist_alerts import check_and_notify
+from scraper.pipeline import backfill, update_recent
 
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--months", type=int, default=3,
-                   help="Cuántos meses recientes refrescar (default 3)")
-    p.add_argument("--backfill", nargs=2, type=int, metavar=("YEAR", "MONTH"),
-                   help="Backfill desde año/mes hasta hoy")
+    p.add_argument(
+        "--months", type=int, default=3, help="Cuántos meses recientes refrescar (default 3)"
+    )
+    p.add_argument(
+        "--backfill",
+        nargs=2,
+        type=int,
+        metavar=("YEAR", "MONTH"),
+        help="Backfill desde año/mes hasta hoy",
+    )
     p.add_argument("--verbose", "-v", action="store_true")
+    p.add_argument(
+        "--log-format",
+        choices=("json", "console"),
+        default=None,
+        help="Formato de logs (default: auto)",
+    )
     args = p.parse_args()
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    configure_logging(
+        level="DEBUG" if args.verbose else "INFO",
+        json_logs=(args.log_format == "json") if args.log_format else None,
     )
-    log = logging.getLogger("run_update")
+    log = get_logger("run_update")
 
     try:
         if args.backfill:
             results = backfill(args.backfill[0], args.backfill[1])
         else:
             results = update_recent(args.months)
-    except Exception:
-        log.exception("Error fatal en el pipeline de actualización")
+    except Exception as e:
+        log.exception("pipeline_fatal_error")
+        notify(AlertLevel.CRITICAL, "Pipeline licitaciones falló con error fatal", body=str(e))
         return 1
 
     failed = [r for r in results if r.get("status") not in ("ok", "no_publicado")]
     total_nuevas = sum(r.get("nuevas", 0) for r in results)
     total_act = sum(r.get("actualizadas", 0) for r in results)
-    log.info("Resumen: %d nuevas, %d actualizadas. Total en BD: %d",
-             total_nuevas, total_act, count_licitaciones())
+    total_db = count_licitaciones()
+    log.info(
+        "pipeline_summary",
+        nuevas=total_nuevas,
+        actualizadas=total_act,
+        total_bd=total_db,
+        meses_fallidos=len(failed),
+    )
+
     if failed:
-        log.error("%d mes(es) con error: %s", len(failed), failed)
+        notify(
+            AlertLevel.WARN,
+            "Pipeline licitaciones con meses fallidos",
+            body=f"{len(failed)} mes(es) con error.",
+            meses_fallidos=[f"{r['year']}-{r['month']:02d}:{r['status']}" for r in failed],
+            nuevas=total_nuevas,
+            total_bd=total_db,
+        )
         return 1
+
+    try:
+        check_and_notify()
+    except Exception:
+        log.exception("watchlist_alert_error")
+
     return 0
 
 

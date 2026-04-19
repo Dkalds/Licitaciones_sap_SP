@@ -7,6 +7,7 @@
 - prefers-reduced-motion (Fase 3)
 - Focus-visible ring y skip-to-content (Fase 4)
 """
+
 from __future__ import annotations
 
 from dashboard.theme.tokens import TOKENS, Tokens

@@ -1,3 +1,6 @@
+# Generado desde requirements.in con pip-compile.
+# Para regenerar: pip-compile --upgrade --resolver=backtracking requirements.in
+# Mientras no se corre pip-compile, mantener rangos semver aquí.
 requests>=2.31.0,<3
 lxml>=5.0.0,<7
 pandas>=2.1.0,<4
@@ -9,3 +12,7 @@ openpyxl>=3.1.0,<4
 libsql>=0.1.0,<1
 python-dotenv>=1.0.0,<2
 streamlit-aggrid>=0.3.3,<1
+structlog>=24.1.0,<26
+pybreaker>=1.0.0,<2
+fastapi>=0.110.0,<1
+uvicorn>=0.30.0,<1

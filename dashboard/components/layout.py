@@ -1,4 +1,5 @@
 """Componentes de layout — header global, footer y sidebar branding."""
+
 from __future__ import annotations
 
 import streamlit as st
@@ -37,6 +38,5 @@ def render_footer() -> None:
             f"{ext.iloc[0]['fuente']} ({ext.iloc[0]['nuevas']} nuevas)"
         )
     st.caption(
-        "Fuente oficial: contrataciondelestado.es · "
-        "Datos reutilizados al amparo de la Ley 37/2007"
+        "Fuente oficial: contrataciondelestado.es · Datos reutilizados al amparo de la Ley 37/2007"
     )

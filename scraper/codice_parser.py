@@ -9,25 +9,25 @@ Namespaces reales (draft) usados por la Plataforma:
 Nota: los prefijos con guión ('cac-place-ext') no son válidos como nombres
 XPath, por eso los remapeamos a 'cacext' y 'cbcext'.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Iterator
+from collections.abc import Iterator
+
 from lxml import etree
 
 from config import MAX_XML_SIZE_BYTES
+from dashboard.classifiers import nuts_to_ccaa
 from db.database import Adjudicacion, Licitacion
 from scraper.filters import matches_sap
-from dashboard.classifiers import nuts_to_ccaa
 
 NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "cbc": "urn:dgpe:names:draft:codice:schema:xsd:CommonBasicComponents-2",
     "cac": "urn:dgpe:names:draft:codice:schema:xsd:CommonAggregateComponents-2",
-    "cacext": "urn:dgpe:names:draft:codice-place-ext:schema:xsd:"
-              "CommonAggregateComponents-2",
-    "cbcext": "urn:dgpe:names:draft:codice-place-ext:schema:xsd:"
-              "CommonBasicComponents-2",
+    "cacext": "urn:dgpe:names:draft:codice-place-ext:schema:xsd:CommonAggregateComponents-2",
+    "cbcext": "urn:dgpe:names:draft:codice-place-ext:schema:xsd:CommonBasicComponents-2",
 }
 
 # Regex para extraer campos del <summary> como fallback.
@@ -111,11 +111,11 @@ def parse_adjudicaciones(entry, licitacion_id: str) -> list[Adjudicacion]:
             es_pyme = 1 if sme_raw.strip().lower() == "true" else 0
 
         importe_adj = _float(
-            tr, "./cac:AwardedTenderedProject/cac:LegalMonetaryTotal"
-                "/cbc:TaxExclusiveAmount")
+            tr, "./cac:AwardedTenderedProject/cac:LegalMonetaryTotal/cbc:TaxExclusiveAmount"
+        )
         importe_pag = _float(
-            tr, "./cac:AwardedTenderedProject/cac:LegalMonetaryTotal"
-                "/cbc:PayableAmount")
+            tr, "./cac:AwardedTenderedProject/cac:LegalMonetaryTotal/cbc:PayableAmount"
+        )
 
         # Puede haber varias WinningParty (UTE)
         winners = tr.xpath("./cac:WinningParty", namespaces=NS)
@@ -125,25 +125,26 @@ def parse_adjudicaciones(entry, licitacion_id: str) -> list[Adjudicacion]:
                 continue
             nif = _text(wp, "./cac:PartyIdentification/cbc:ID")
             nuts = _text(wp, "./cac:PhysicalLocation/cbc:CountrySubentityCode")
-            provincia = _text(wp, "./cac:PhysicalLocation/cac:Address"
-                                  "/cbc:CityName")
-            out.append(Adjudicacion(
-                licitacion_id=licitacion_id,
-                nombre=nombre.strip(),
-                nif=nif.strip() if nif else None,
-                provincia=provincia,
-                nuts_code=nuts,
-                ccaa=nuts_to_ccaa(nuts),
-                importe_adjudicado=importe_adj,
-                importe_pagable=importe_pag,
-                fecha_adjudicacion=award_date,
-                es_pyme=es_pyme,
-                n_ofertas_recibidas=n_ofertas,
-                oferta_minima=oferta_min,
-                oferta_maxima=oferta_max,
-                result_code=result_code,
-                result_description=result_desc,
-            ))
+            provincia = _text(wp, "./cac:PhysicalLocation/cac:Address/cbc:CityName")
+            out.append(
+                Adjudicacion(
+                    licitacion_id=licitacion_id,
+                    nombre=nombre.strip(),
+                    nif=nif.strip() if nif else None,
+                    provincia=provincia,
+                    nuts_code=nuts,
+                    ccaa=nuts_to_ccaa(nuts),
+                    importe_adjudicado=importe_adj,
+                    importe_pagable=importe_pag,
+                    fecha_adjudicacion=award_date,
+                    es_pyme=es_pyme,
+                    n_ofertas_recibidas=n_ofertas,
+                    oferta_minima=oferta_min,
+                    oferta_maxima=oferta_max,
+                    result_code=result_code,
+                    result_description=result_desc,
+                )
+            )
     return out
 
 
@@ -163,8 +164,7 @@ def parse_entry(entry) -> Licitacion | None:
 
     organo_codice = _text(
         entry,
-        f"{cfs}/cacext:LocatedContractingParty/cac:Party"
-        f"/cac:PartyName/cbc:Name",
+        f"{cfs}/cacext:LocatedContractingParty/cac:Party/cac:PartyName/cbc:Name",
     )
 
     project_xp = f"{cfs}/cac:ProcurementProject"
@@ -172,16 +172,17 @@ def parse_entry(entry) -> Licitacion | None:
     tipo = _text(entry, f"{project_xp}/cbc:TypeCode")
     cpv = _text(
         entry,
-        f"{project_xp}/cac:RequiredCommodityClassification"
-        f"/cbc:ItemClassificationCode",
+        f"{project_xp}/cac:RequiredCommodityClassification/cbc:ItemClassificationCode",
     )
     # TaxExclusiveAmount suele ser el importe sin IVA (licitación base)
     importe = _float(
-        entry, f"{project_xp}/cac:BudgetAmount/cbc:TaxExclusiveAmount",
+        entry,
+        f"{project_xp}/cac:BudgetAmount/cbc:TaxExclusiveAmount",
     )
     if importe is None:
         importe = _float(
-            entry, f"{project_xp}/cac:BudgetAmount/cbc:TotalAmount",
+            entry,
+            f"{project_xp}/cac:BudgetAmount/cbc:TotalAmount",
         )
     moneda = None
     moneda_attr = entry.xpath(
@@ -205,8 +206,7 @@ def parse_entry(entry) -> Licitacion | None:
     pp = f"{project_xp}/cac:PlannedPeriod"
     duracion_valor = _float(entry, f"{pp}/cbc:DurationMeasure")
     duracion_unidad = None
-    unit_attr = entry.xpath(f"{pp}/cbc:DurationMeasure/@unitCode",
-                              namespaces=NS)
+    unit_attr = entry.xpath(f"{pp}/cbc:DurationMeasure/@unitCode", namespaces=NS)
     if unit_attr:
         duracion_unidad = unit_attr[0]
     fecha_inicio = _text(entry, f"{pp}/cbc:StartDate")
@@ -214,8 +214,7 @@ def parse_entry(entry) -> Licitacion | None:
 
     prorroga = _text(
         entry,
-        f"{project_xp}/cac:ContractExtension/cac:OptionValidityPeriod"
-        f"/cbc:Description",
+        f"{project_xp}/cac:ContractExtension/cac:OptionValidityPeriod/cbc:Description",
     )
 
     # Fallback vía summary (útil cuando falta algún nodo CODICE)
@@ -259,8 +258,7 @@ def parse_entry(entry) -> Licitacion | None:
     )
 
 
-def parse_atom_bytes(content: bytes
-                      ) -> Iterator[tuple[Licitacion, list[Adjudicacion]]]:
+def parse_atom_bytes(content: bytes) -> Iterator[tuple[Licitacion, list[Adjudicacion]]]:
     """Itera (licitación SAP, adjudicaciones) encontradas en un ATOM."""
     if len(content) > MAX_XML_SIZE_BYTES:
         raise ValueError(
@@ -270,8 +268,7 @@ def parse_atom_bytes(content: bytes
     # huge_tree=False (default): mantiene límites de profundidad y tamaño de
     # lxml para prevenir ataques XML bomb. resolve_entities=False y
     # no_network=True previenen ataques XXE (XML External Entity).
-    parser = etree.XMLParser(huge_tree=False, recover=True,
-                             resolve_entities=False, no_network=True)
+    parser = etree.XMLParser(huge_tree=False, recover=True, resolve_entities=False, no_network=True)
     root = etree.fromstring(content, parser=parser)
     for entry in root.iter("{http://www.w3.org/2005/Atom}entry"):
         try:
@@ -281,4 +278,5 @@ def parse_atom_bytes(content: bytes
                 yield lic, adj
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning("Error parseando entry: %s", e)

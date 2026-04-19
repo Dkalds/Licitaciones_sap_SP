@@ -1,16 +1,16 @@
 """Capa de persistencia SQLite / Turso (libSQL) para licitaciones."""
+
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Iterable, Iterator
 
 import libsql
 
-from config import DB_PATH, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, TURSO_LOCAL_DB
-
+from config import DB_PATH, TURSO_AUTH_TOKEN, TURSO_DATABASE_URL
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS licitaciones (
@@ -98,9 +98,7 @@ class Adjudicacion:
     oferta_maxima: float | None = None
     result_code: str | None = None
     result_description: str | None = None
-    fecha_extraccion: str = field(
-        default_factory=lambda: datetime.utcnow().isoformat()
-    )
+    fecha_extraccion: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
 @dataclass
@@ -126,9 +124,7 @@ class Licitacion:
     fecha_inicio: str | None = None
     fecha_fin: str | None = None
     prorroga_descripcion: str | None = None
-    fecha_extraccion: str = field(
-        default_factory=lambda: datetime.utcnow().isoformat()
-    )
+    fecha_extraccion: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
 @contextmanager
@@ -158,18 +154,18 @@ _VALID_COLUMN_NAME = re.compile(r"^[a-zA-Z_]\w*$")
 
 def _migrate(conn) -> None:
     """Aplica ALTER TABLE ADD COLUMN para BDs preexistentes."""
-    cols = {r[1] for r in conn.execute(
-        "PRAGMA table_info(licitaciones)").fetchall()}
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(licitaciones)").fetchall()}
     for name, ctype in _NEW_COLUMNS_LICITACIONES:
         if not _VALID_COLUMN_NAME.match(name):
             raise ValueError(f"Nombre de columna no válido: {name!r}")
         if name not in cols:
-            conn.execute(
-                f"ALTER TABLE licitaciones ADD COLUMN {name} {ctype}")
+            conn.execute(f"ALTER TABLE licitaciones ADD COLUMN {name} {ctype}")
 
 
 def init_db() -> None:
     from config import ensure_data_dirs
+    from db.migrations import apply_pending
+
     ensure_data_dirs()
     with connect() as c:
         for stmt in SCHEMA.split(";"):
@@ -177,6 +173,7 @@ def init_db() -> None:
             if stmt:
                 c.execute(stmt)
         _migrate(c)
+        apply_pending(c)
 
 
 def upsert_licitaciones(items: Iterable[Licitacion]) -> tuple[int, int]:
@@ -198,8 +195,9 @@ def upsert_licitaciones(items: Iterable[Licitacion]) -> tuple[int, int]:
             cols = ", ".join(keys)
             placeholders = ", ".join("?" for _ in keys)
             updates = ", ".join(f"{k}=excluded.{k}" for k in keys if k != "id_externo")
-            c.execute(
-                f"INSERT INTO licitaciones ({cols}) VALUES ({placeholders}) "
+            # Column names come from dataclass fields (controlled code) — safe
+            c.execute(  # noqa: RUF100, S608
+                f"INSERT INTO licitaciones ({cols}) VALUES ({placeholders}) "  # noqa: S608
                 f"ON CONFLICT(id_externo) DO UPDATE SET {updates}",
                 vals,
             )
@@ -210,13 +208,11 @@ def upsert_licitaciones(items: Iterable[Licitacion]) -> tuple[int, int]:
     return nuevas, actualizadas
 
 
-def replace_adjudicaciones(licitacion_id: str,
-                            items: Iterable[Adjudicacion]) -> int:
+def replace_adjudicaciones(licitacion_id: str, items: Iterable[Adjudicacion]) -> int:
     """Reemplaza todas las adjudicaciones de una licitación (idempotente)."""
     items = list(items)
     with connect() as c:
-        c.execute("DELETE FROM adjudicaciones WHERE licitacion_id = ?",
-                  [licitacion_id])
+        c.execute("DELETE FROM adjudicaciones WHERE licitacion_id = ?", [licitacion_id])
         n = 0
         for adj in items:
             data = asdict(adj)
@@ -227,8 +223,9 @@ def replace_adjudicaciones(licitacion_id: str,
             vals = list(data.values())
             cols = ", ".join(keys)
             placeholders = ", ".join("?" for _ in keys)
-            c.execute(
-                f"INSERT OR IGNORE INTO adjudicaciones ({cols}) "
+            # Column names come from dataclass fields (controlled code) — safe
+            c.execute(  # noqa: RUF100, S608
+                f"INSERT OR IGNORE INTO adjudicaciones ({cols}) "  # noqa: S608
                 f"VALUES ({placeholders})",
                 vals,
             )
@@ -236,15 +233,15 @@ def replace_adjudicaciones(licitacion_id: str,
     return n
 
 
-def log_extraccion(fuente: str, nuevas: int, actualizadas: int,
-                   total: int, notas: str = "") -> None:
+def log_extraccion(
+    fuente: str, nuevas: int, actualizadas: int, total: int, notas: str = ""
+) -> None:
     with connect() as c:
         c.execute(
             "INSERT INTO extracciones "
             "(fecha, fuente, nuevas, actualizadas, total_revisadas, notas) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (datetime.utcnow().isoformat(), fuente, nuevas,
-             actualizadas, total, notas),
+            (datetime.utcnow().isoformat(), fuente, nuevas, actualizadas, total, notas),
         )
 
 

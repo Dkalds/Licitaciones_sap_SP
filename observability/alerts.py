@@ -1,0 +1,188 @@
+"""Envío de alertas por email (SMTP) o al log estructurado.
+
+Variables de entorno necesarias para email:
+
+- ``ALERT_EMAIL_TO``       : destinatario, p.ej. dkalitovicsd@gmail.com
+- ``ALERT_SMTP_USER``      : cuenta remitente, p.ej. dkalitovicsd@gmail.com
+- ``ALERT_SMTP_PASSWORD``  : contraseña de aplicación de Google (16 chars)
+- ``ALERT_SMTP_HOST``      : servidor SMTP  (default: smtp.gmail.com)
+- ``ALERT_SMTP_PORT``      : puerto STARTTLS (default: 587)
+- ``ALERT_MIN_LEVEL``      : ``info`` | ``warn`` | ``error`` (default: ``warn``)
+
+Si las variables no están definidas las alertas solo se escriben al log.
+
+Cómo obtener la contraseña de aplicación de Gmail
+--------------------------------------------------
+1. Activa la verificación en 2 pasos en tu cuenta Google.
+2. Ve a https://myaccount.google.com/apppasswords
+3. Crea una nueva contraseña para "Correo" / "Otro (nombre personalizado)".
+4. Copia los 16 caracteres y ponlos en ALERT_SMTP_PASSWORD.
+"""
+
+from __future__ import annotations
+
+import os
+import smtplib
+import textwrap
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from enum import IntEnum
+from typing import Any
+
+from observability.logging import get_logger
+
+log = get_logger(__name__)
+
+
+class AlertLevel(IntEnum):
+    INFO = 10
+    WARN = 20
+    ERROR = 30
+    CRITICAL = 40
+
+
+_LEVEL_NAMES = {
+    "info": AlertLevel.INFO,
+    "warn": AlertLevel.WARN,
+    "warning": AlertLevel.WARN,
+    "error": AlertLevel.ERROR,
+    "critical": AlertLevel.CRITICAL,
+}
+
+_LEVEL_COLORS = {
+    AlertLevel.INFO: "#36a64f",
+    AlertLevel.WARN: "#e6a817",
+    AlertLevel.ERROR: "#e04e4e",
+    AlertLevel.CRITICAL: "#8b0000",
+}
+
+_LEVEL_EMOJI = {
+    AlertLevel.INFO: "ℹ️",
+    AlertLevel.WARN: "⚠️",
+    AlertLevel.ERROR: "❌",
+    AlertLevel.CRITICAL: "🚨",
+}
+
+
+def _min_level() -> AlertLevel:
+    raw = os.environ.get("ALERT_MIN_LEVEL", "warn").lower()
+    return _LEVEL_NAMES.get(raw, AlertLevel.WARN)
+
+
+def _build_html(level: AlertLevel, title: str, body: str,
+                context: dict[str, Any]) -> str:
+    color = _LEVEL_COLORS[level]
+    emoji = _LEVEL_EMOJI[level]
+    ctx_rows = "".join(
+        f"<tr><td style='padding:4px 12px 4px 0;color:#555;font-weight:bold'>{k}</td>"
+        f"<td style='padding:4px 0'>{v}</td></tr>"
+        for k, v in context.items()
+    )
+    ctx_table = (
+        f"<table style='margin-top:12px;border-collapse:collapse'>{ctx_rows}</table>"
+        if ctx_rows
+        else ""
+    )
+    return textwrap.dedent(f"""\
+        <!DOCTYPE html>
+        <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="border-left:4px solid {color};padding:12px 16px;
+                      background:#fafafa;border-radius:4px">
+            <h2 style="margin:0 0 8px;color:{color}">{emoji} {title}</h2>
+            <p style="margin:0;color:#333;white-space:pre-wrap">{body}</p>
+            {ctx_table}
+          </div>
+          <p style="font-size:11px;color:#aaa;margin-top:16px">
+            Licitaciones SAP · alerta automática · nivel {level.name}
+          </p>
+        </body></html>
+    """)
+
+
+def _send_smtp(
+    level: AlertLevel,
+    title: str,
+    body: str,
+    context: dict[str, Any],
+    *,
+    to_addr: str | None = None,
+) -> None:
+    """Envía el email usando SMTP con STARTTLS.
+
+    ``to_addr`` sobreescribe la variable de entorno ``ALERT_EMAIL_TO``
+    cuando se especifica (útil para notificaciones por destinatario).
+    """
+    recipient = (to_addr or os.environ.get("ALERT_EMAIL_TO", "")).strip()
+    user = os.environ.get("ALERT_SMTP_USER", "").strip()
+    password = os.environ.get("ALERT_SMTP_PASSWORD", "").strip()
+    host = os.environ.get("ALERT_SMTP_HOST", "smtp.gmail.com").strip()
+    port = int(os.environ.get("ALERT_SMTP_PORT", "587"))
+
+    if not (recipient and user and password):
+        log.debug("alert_smtp_not_configured", missing=[
+            k for k, v in {
+                "ALERT_EMAIL_TO": recipient,
+                "ALERT_SMTP_USER": user,
+                "ALERT_SMTP_PASSWORD": password,
+            }.items() if not v
+        ])
+        return
+
+    subject = f"[Licitaciones SAP] [{level.name}] {title}"
+    html = _build_html(level, title, body, context)
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = user
+    msg["To"] = recipient
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(user, password)
+            server.sendmail(user, [recipient], msg.as_string())
+        log.info("alert_email_sent", to=recipient, subject=subject)
+    except smtplib.SMTPException as e:
+        log.warning("alert_email_failed", error=str(e))
+    except OSError as e:
+        log.warning("alert_email_network_error", error=str(e))
+
+
+def notify(
+    level: AlertLevel | str,
+    title: str,
+    body: str = "",
+    *,
+    to_addr: str | None = None,
+    **context: Any,
+) -> None:
+    """Envía una alerta. Seguro de llamar sin configuración (solo loguea).
+
+    ``level`` puede ser un enum ``AlertLevel`` o cadena (``info``/``warn``/
+    ``error``/``critical``).
+
+    ``to_addr`` sobreescribe el destinatario de ``ALERT_EMAIL_TO`` del entorno.
+    """
+    if isinstance(level, str):
+        level = _LEVEL_NAMES.get(level.lower(), AlertLevel.WARN)
+
+    if level < _min_level():
+        return
+
+    log.log(
+        {
+            AlertLevel.INFO: 20,
+            AlertLevel.WARN: 30,
+            AlertLevel.ERROR: 40,
+            AlertLevel.CRITICAL: 50,
+        }[level],
+        "alert",
+        alert_title=title,
+        alert_body=body,
+        **context,
+    )
+
+    _send_smtp(level, title, body, context, to_addr=to_addr)

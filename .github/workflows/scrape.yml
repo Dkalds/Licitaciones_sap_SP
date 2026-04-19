@@ -4,7 +4,12 @@ on:
   schedule:
     # Diario a las 06:00 UTC (08:00 hora ESP en verano, 07:00 invierno)
     - cron: "0 6 * * *"
-  workflow_dispatch:  # permite lanzarlo a mano desde la pestaña Actions
+  workflow_dispatch:
+    inputs:
+      months:
+        description: "Cuántos meses refrescar"
+        default: "3"
+        required: false
 
 permissions:
   contents: read  # solo lectura — ya no commiteamos la BD
@@ -33,8 +38,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run scraper (last 3 months)
+      - name: Run scraper
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: python -m scheduler.run_update --months 3
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
+          ALERT_SMTP_PASSWORD: ${{ secrets.ALERT_SMTP_PASSWORD }}
+          ALERT_MIN_LEVEL: ${{ vars.ALERT_MIN_LEVEL || 'warn' }}
+          LOG_FORMAT: json
+        run: python -m scheduler.run_update --months ${{ inputs.months || 3 }}
+
+      - name: Healthcheck post-run
+        if: always()
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
+          ALERT_SMTP_PASSWORD: ${{ secrets.ALERT_SMTP_PASSWORD }}
+          ALERT_MIN_LEVEL: ${{ vars.ALERT_MIN_LEVEL || 'warn' }}
+          LOG_FORMAT: json
+        run: python -m scheduler.healthcheck --alert

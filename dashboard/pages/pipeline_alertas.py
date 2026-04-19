@@ -1,4 +1,5 @@
 """Página Pipeline & Alertas — vencimientos, oportunidades y Gantt."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -21,7 +22,8 @@ def render(ctx: PageContext) -> None:
     st.subheader("Pipeline & Alertas")
     st.caption(
         "Previsión de re-licitaciones, contratos próximos a vencer y "
-        "ventanas de oportunidad comercial.")
+        "ventanas de oportunidad comercial."
+    )
 
     adj_rv = load_adjudicaciones()
     if adj_rv.empty or df.empty:
@@ -36,23 +38,24 @@ def render(ctx: PageContext) -> None:
     # ── Configuración ────────────────────────────────────────────────
     cRV1, cRV2, cRV3, cRV4 = st.columns(4)
     with cRV1:
-        rv_horizonte = st.slider("Horizonte (meses)", 1, 36, 18,
-                                  key="rv_horizonte")
+        rv_horizonte = st.slider("Horizonte (meses)", 1, 36, 18, key="rv_horizonte")
     with cRV2:
-        rv_ant = st.slider("Anticipación alerta (meses)", 1, 12, 6,
-                            key="rv_ant")
+        rv_ant = st.slider("Anticipación alerta (meses)", 1, 12, 6, key="rv_ant")
     with cRV3:
-        rv_imp_min = st.number_input("Importe mínimo (€)", min_value=0,
-                                      value=0, step=50000,
-                                      key="rv_imp_min")
+        rv_imp_min = st.number_input(
+            "Importe mínimo (€)", min_value=0, value=0, step=50000, key="rv_imp_min"
+        )
     with cRV4:
-        rv_solo_mant = st.checkbox("Solo Mantenimiento", value=False,
-                                    key="rv_solo_mant",
-                                    help="Desmarcar para ver todos los tipos")
+        rv_solo_mant = st.checkbox(
+            "Solo Mantenimiento",
+            value=False,
+            key="rv_solo_mant",
+            help="Desmarcar para ver todos los tipos",
+        )
 
-    fc_rv = build_forecast_df(df, adj_rv,
-                               meses_anticipacion=rv_ant,
-                               solo_mantenimiento=rv_solo_mant)
+    fc_rv = build_forecast_df(
+        df, adj_rv, meses_anticipacion=rv_ant, solo_mantenimiento=rv_solo_mant
+    )
 
     if fc_rv.empty or fc_rv["fecha_fin_estimada"].isna().all():
         empty_state(
@@ -67,36 +70,45 @@ def render(ctx: PageContext) -> None:
     horiz_fin = hoy_rv + pd.DateOffset(months=rv_horizonte)
 
     oport = fc_rv[
-        (fc_rv["fecha_fin_estimada"] >= hoy_rv) &
-        (fc_rv["fecha_fin_estimada"] <= horiz_fin)
+        (fc_rv["fecha_fin_estimada"] >= hoy_rv) & (fc_rv["fecha_fin_estimada"] <= horiz_fin)
     ].copy()
 
     if rv_imp_min > 0:
         oport = oport[oport["importe"].fillna(0) >= rv_imp_min]
 
     if "adjudicatarios" in oport.columns:
-        oport = oport.rename(
-            columns={"adjudicatarios": "adjudicatario_actual"})
+        oport = oport.rename(columns={"adjudicatarios": "adjudicatario_actual"})
 
     # ── KPIs ─────────────────────────────────────────────────────
     en_ventana = oport[oport["relicit_inicio"] <= hoy_rv]
     kv1, kv2, kv3, kv4 = st.columns(4)
-    kv1.markdown(kpi_card("Oportunidades detectadas",
-                           f"{len(oport):,}",
-                           delta=f"próx. {rv_horizonte} meses",
-                           icon="🎯"), unsafe_allow_html=True)
-    kv2.markdown(kpi_card("Importe en juego",
-                           fmt_eur(oport["importe"].sum(skipna=True)),
-                           icon="💰"), unsafe_allow_html=True)
-    kv3.markdown(kpi_card("Ya en ventana de alerta",
-                           f"{len(en_ventana):,}",
-                           delta="actuar ahora",
-                           delta_up=False, icon="🔴"),
-                  unsafe_allow_html=True)
-    kv4.markdown(kpi_card("Importe en ventana",
-                           fmt_eur(en_ventana["importe"].sum(
-                               skipna=True)),
-                           icon="🚨"), unsafe_allow_html=True)
+    kv1.markdown(
+        kpi_card(
+            "Oportunidades detectadas",
+            f"{len(oport):,}",
+            delta=f"próx. {rv_horizonte} meses",
+            icon="🎯",
+        ),
+        unsafe_allow_html=True,
+    )
+    kv2.markdown(
+        kpi_card("Importe en juego", fmt_eur(oport["importe"].sum(skipna=True)), icon="💰"),
+        unsafe_allow_html=True,
+    )
+    kv3.markdown(
+        kpi_card(
+            "Ya en ventana de alerta",
+            f"{len(en_ventana):,}",
+            delta="actuar ahora",
+            delta_up=False,
+            icon="🔴",
+        ),
+        unsafe_allow_html=True,
+    )
+    kv4.markdown(
+        kpi_card("Importe en ventana", fmt_eur(en_ventana["importe"].sum(skipna=True)), icon="🚨"),
+        unsafe_allow_html=True,
+    )
 
     st.markdown("")
 
@@ -104,48 +116,51 @@ def render(ctx: PageContext) -> None:
     cFc1, cFc2 = st.columns(2)
     with cFc1:
         st.subheader("Distribución por horizonte temporal")
-        ef = (fc_rv.dropna(subset=["estado_forecast"])
-                 .groupby("estado_forecast", observed=True)
-                 .agg(n=("id_externo", "count"),
-                      importe=("importe", "sum"))
-                 .reset_index())
+        ef = (
+            fc_rv.dropna(subset=["estado_forecast"])
+            .groupby("estado_forecast", observed=True)
+            .agg(n=("id_externo", "count"), importe=("importe", "sum"))
+            .reset_index()
+        )
         if not ef.empty:
-            fig = px.bar(ef, x="estado_forecast", y="n",
-                          template=ctx.plotly_template,
-                          color="importe",
-                          color_continuous_scale="Greens",
-                          labels={"estado_forecast": "",
-                                  "n": "Contratos",
-                                  "importe": "Importe €"})
-            fig.update_layout(height=380,
-                               margin=dict(t=20, b=10, l=10, r=10))
+            fig = px.bar(
+                ef,
+                x="estado_forecast",
+                y="n",
+                template=ctx.plotly_template,
+                color="importe",
+                color_continuous_scale="Greens",
+                labels={"estado_forecast": "", "n": "Contratos", "importe": "Importe €"},
+            )
+            fig.update_layout(height=380, margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
 
     with cFc2:
         st.subheader("Volumen previsto por trimestre")
         qf = oport.dropna(subset=["fecha_fin_estimada"]).copy()
         if not qf.empty:
-            qf["trimestre"] = (qf["fecha_fin_estimada"]
-                                 .dt.to_period("Q").dt.to_timestamp())
-            qg = (qf.groupby("trimestre")
-                      .agg(n=("id_externo", "count"),
-                           importe=("importe", "sum"))
-                      .reset_index())
-            fig = px.bar(qg, x="trimestre", y="importe",
-                          template=ctx.plotly_template,
-                          color_discrete_sequence=["#86BC25"],
-                          labels={"trimestre": "",
-                                  "importe": "Importe que vence (€)"},
-                          hover_data=["n"])
-            fig.update_layout(height=380,
-                               margin=dict(t=20, b=10, l=10, r=10))
+            qf["trimestre"] = qf["fecha_fin_estimada"].dt.to_period("Q").dt.to_timestamp()
+            qg = (
+                qf.groupby("trimestre")
+                .agg(n=("id_externo", "count"), importe=("importe", "sum"))
+                .reset_index()
+            )
+            fig = px.bar(
+                qg,
+                x="trimestre",
+                y="importe",
+                template=ctx.plotly_template,
+                color_discrete_sequence=["#86BC25"],
+                labels={"trimestre": "", "importe": "Importe que vence (€)"},
+                hover_data=["n"],
+            )
+            fig.update_layout(height=380, margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
 
-    # ── Matriz urgencia × valor ──────────────────────────────────
-    st.subheader("Matriz urgencia × valor del contrato")
+    # ── Matriz urgencia × valor ──────────────────────────────────  # noqa: RUF003
+    st.subheader("Matriz urgencia × valor del contrato")  # noqa: RUF001
     if not oport.empty:
-        oport["dias_restantes"] = (
-            oport["fecha_fin_estimada"] - hoy_rv).dt.days
+        oport["dias_restantes"] = (oport["fecha_fin_estimada"] - hoy_rv).dt.days
         oport_s = oport.dropna(subset=["importe", "dias_restantes"])
         if not oport_s.empty:
             oport_s = oport_s.copy()
@@ -153,74 +168,94 @@ def render(ctx: PageContext) -> None:
             oport_s["prorroga"] = (
                 oport_s["prorroga_descripcion"].notna()
                 if "prorroga_descripcion" in oport_s.columns
-                else False)
+                else False
+            )
             fig = px.scatter(
-                oport_s, x="dias_restantes", y="importe",
+                oport_s,
+                x="dias_restantes",
+                y="importe",
                 color="estado_forecast",
                 size="importe",
                 hover_name="label",
-                hover_data={"organo_contratacion": True,
-                            "dias_restantes": True,
-                            "importe": ":,.0f"},
+                hover_data={
+                    "organo_contratacion": True,
+                    "dias_restantes": True,
+                    "importe": ":,.0f",
+                },
                 template=ctx.plotly_template,
                 color_discrete_sequence=ctx.color_sequence,
                 log_y=True,
-                labels={"dias_restantes": "Días hasta vencimiento",
-                        "importe": "Importe licitación (€, log)",
-                        "estado_forecast": "Estado"})
+                labels={
+                    "dias_restantes": "Días hasta vencimiento",
+                    "importe": "Importe licitación (€, log)",
+                    "estado_forecast": "Estado",
+                },
+            )
             fig.add_vline(
-                x=rv_ant * 30, line_dash="dash",
+                x=rv_ant * 30,
+                line_dash="dash",
                 line_color="#E21836",
                 annotation_text=f"Ventana alerta ({rv_ant}m)",
-                annotation_position="top right")
-            fig.update_layout(height=480,
-                              margin=dict(t=20, b=10, l=10, r=10))
+                annotation_position="top right",
+            )
+            fig.update_layout(height=480, margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
-            st.caption("Cuadrante **izquierda-arriba**: contratos grandes "
-                       "con vencimiento inminente — máxima prioridad.")
+            st.caption(
+                "Cuadrante **izquierda-arriba**: contratos grandes "
+                "con vencimiento inminente — máxima prioridad."
+            )
 
     # ── Timeline Gantt ───────────────────────────────────────────
     st.subheader("Timeline de contratos (top 30 por valor)")
-    tl_rv = oport.dropna(
-        subset=["inicio_efectivo", "fecha_fin_estimada"]).copy()
+    tl_rv = oport.dropna(subset=["inicio_efectivo", "fecha_fin_estimada"]).copy()
     if not tl_rv.empty:
         tl_rv = tl_rv.nlargest(30, "importe")
         tl_rv["label"] = tl_rv["titulo"].str[:55]
-        adj_col = ("adjudicatario_actual"
-                    if "adjudicatario_actual" in tl_rv.columns
-                    else None)
-        hover_extra = ({"adjudicatario_actual": True}
-                        if adj_col else {})
+        adj_col = "adjudicatario_actual" if "adjudicatario_actual" in tl_rv.columns else None
+        hover_extra = {"adjudicatario_actual": True} if adj_col else {}
         fig = px.timeline(
             tl_rv,
             x_start="inicio_efectivo",
             x_end="fecha_fin_estimada",
-            y="label", color="importe",
+            y="label",
+            color="importe",
             color_continuous_scale="YlGn",
             template=ctx.plotly_template,
-            hover_data={"organo_contratacion": True,
-                        "importe": ":,.0f",
-                        **hover_extra})
+            hover_data={"organo_contratacion": True, "importe": ":,.0f", **hover_extra},
+        )
         fig.add_shape(
             type="line",
-            x0=hoy_rv.isoformat(), x1=hoy_rv.isoformat(),
-            y0=0, y1=1, yref="paper",
-            line=dict(color="#E21836", dash="dash", width=2))
+            x0=hoy_rv.isoformat(),
+            x1=hoy_rv.isoformat(),
+            y0=0,
+            y1=1,
+            yref="paper",
+            line=dict(color="#E21836", dash="dash", width=2),
+        )
         fig.add_annotation(
-            x=hoy_rv.isoformat(), y=1, yref="paper",
-            text="Hoy", showarrow=False,
-            font=dict(color="#E21836"), yanchor="bottom")
+            x=hoy_rv.isoformat(),
+            y=1,
+            yref="paper",
+            text="Hoy",
+            showarrow=False,
+            font=dict(color="#E21836"),
+            yanchor="bottom",
+        )
         fig.update_yaxes(autorange="reversed")
-        fig.update_layout(height=620,
-                          margin=dict(t=20, b=10, l=10, r=10),
-                          yaxis_title="")
+        fig.update_layout(height=620, margin=dict(t=20, b=10, l=10, r=10), yaxis_title="")
         st.plotly_chart(fig, use_container_width=True)
 
     # ── Tabla de oportunidades ───────────────────────────────────
     st.subheader("Listado de oportunidades")
-    cols_rv = ["fecha_fin_estimada", "relicit_inicio", "titulo",
-                "organo_contratacion", "ccaa", "importe",
-                "estado_forecast"]
+    cols_rv = [
+        "fecha_fin_estimada",
+        "relicit_inicio",
+        "titulo",
+        "organo_contratacion",
+        "ccaa",
+        "importe",
+        "estado_forecast",
+    ]
     if "adjudicatario_actual" in oport.columns:
         cols_rv.append("adjudicatario_actual")
     if "prorroga_descripcion" in oport.columns:
@@ -232,24 +267,17 @@ def render(ctx: PageContext) -> None:
         oport[cols_rv].sort_values("fecha_fin_estimada"),
         height=480,
         column_config={
-            "fecha_fin_estimada": st.column_config.DateColumn(
-                "Fin estimado"),
-            "relicit_inicio": st.column_config.DateColumn(
-                "Inicio ventana"),
-            "titulo": st.column_config.TextColumn(
-                "Título", width="large"),
-            "organo_contratacion": st.column_config.TextColumn(
-                "Órgano", width="medium"),
-            "ccaa": st.column_config.TextColumn("CCAA",
-                                                  width="small"),
-            "importe": st.column_config.NumberColumn(
-                "Importe lic.", format="%.0f €"),
+            "fecha_fin_estimada": st.column_config.DateColumn("Fin estimado"),
+            "relicit_inicio": st.column_config.DateColumn("Inicio ventana"),
+            "titulo": st.column_config.TextColumn("Título", width="large"),
+            "organo_contratacion": st.column_config.TextColumn("Órgano", width="medium"),
+            "ccaa": st.column_config.TextColumn("CCAA", width="small"),
+            "importe": st.column_config.NumberColumn("Importe lic.", format="%.0f €"),
             "estado_forecast": st.column_config.TextColumn("Estado"),
             "adjudicatario_actual": st.column_config.TextColumn(
-                "Adjudicatario actual", width="medium"),
-            "prorroga_descripcion": st.column_config.TextColumn(
-                "Prórroga"),
-            "url": st.column_config.LinkColumn(
-                "Enlace", display_text="🔗"),
+                "Adjudicatario actual", width="medium"
+            ),
+            "prorroga_descripcion": st.column_config.TextColumn("Prórroga"),
+            "url": st.column_config.LinkColumn("Enlace", display_text="🔗"),
         },
     )
