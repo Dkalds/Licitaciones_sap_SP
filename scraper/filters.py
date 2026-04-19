@@ -1,7 +1,9 @@
 """Filtros para detectar licitaciones relacionadas con SAP."""
+
 from __future__ import annotations
 
 import re
+
 from config import SAP_KEYWORDS
 
 # Compilamos un regex con word boundaries para evitar falsos positivos

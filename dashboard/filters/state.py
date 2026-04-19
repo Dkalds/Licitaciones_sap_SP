@@ -1,15 +1,15 @@
 """Estado de filtros del sidebar — dataclass serializable a session_state."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional
 
 
 @dataclass
 class FiltersState:
     q: str = ""
-    rango: Optional[tuple[date, date]] = None
+    rango: tuple[date, date] | None = None
     estados: list[str] = field(default_factory=list)
     ccaas: list[str] = field(default_factory=list)
     organos: list[str] = field(default_factory=list)
@@ -19,8 +19,11 @@ class FiltersState:
     def is_active(self) -> bool:
         """Devuelve True si algún filtro distinto al rango está activo."""
         return bool(
-            self.q or self.estados or self.ccaas
-            or self.organos or self.tipos_proy
+            self.q
+            or self.estados
+            or self.ccaas
+            or self.organos
+            or self.tipos_proy
             or self.importe_min > 0
         )
 
@@ -62,7 +65,7 @@ class FiltersState:
         return params
 
     @classmethod
-    def from_query_params(cls, params: dict[str, str]) -> "FiltersState":
+    def from_query_params(cls, params: dict[str, str]) -> FiltersState:
         """Reconstruye un FiltersState desde parámetros de URL."""
         rango = None
         if "fecha_desde" in params and "fecha_hasta" in params:

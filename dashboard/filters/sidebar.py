@@ -1,4 +1,5 @@
 """Renderiza los filtros del sidebar y devuelve un FiltersState."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -51,9 +52,7 @@ def render_sidebar_filters(df_full: pd.DataFrame) -> FiltersState:
     )
 
     st.divider()
-    st.caption(
-        f"Última actualización BD:\n{df_full['fecha_extraccion'].max()}"
-    )
+    st.caption(f"Última actualización BD:\n{df_full['fecha_extraccion'].max()}")
 
     return FiltersState(
         q=q,

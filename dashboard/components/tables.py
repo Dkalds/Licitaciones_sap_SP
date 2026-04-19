@@ -1,4 +1,5 @@
 """Wrapper de tabla — abstrae st.dataframe / AgGrid para uso uniforme."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -6,6 +7,7 @@ import streamlit as st
 
 try:
     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
     _AGGRID = True
 except ImportError:
     _AGGRID = False
@@ -30,11 +32,7 @@ def data_table(
     mode='aggrid' → fuerza AgGrid (fallback a native si no está instalado).
     mode='native' → fuerza st.dataframe.
     """
-    use_aggrid = (
-        _AGGRID
-        and mode != "native"
-        and (mode == "aggrid" or len(df) > _AUTO_THRESHOLD)
-    )
+    use_aggrid = _AGGRID and mode != "native" and (mode == "aggrid" or len(df) > _AUTO_THRESHOLD)
 
     if use_aggrid:
         gb = GridOptionsBuilder.from_dataframe(df)
@@ -70,7 +68,7 @@ def data_table(
             df,
             use_container_width=True,
             hide_index=True,
-            height=height,
+            height=height or None,  # type: ignore[arg-type]
             column_config=column_config or {},
             key=key,
         )

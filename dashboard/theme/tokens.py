@@ -7,6 +7,7 @@ Los valores actuales replican el CSS inline pre-refactor (app.py:32-103 y
 _premium layout en :138-158). La mejora de contraste WCAG AA (#808080 →
 #A8A8A8) se introduce en Fase 4 sobre `Colors.text_muted`.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -18,7 +19,7 @@ class Colors:
     bg_base: str = "#0E1117"
     bg_sidebar_top: str = "#0D0D0D"
     bg_sidebar_bottom: str = "#111111"
-    bg_elev_1: str = "rgba(255,255,255,0.03)"   # kpi-card bg
+    bg_elev_1: str = "rgba(255,255,255,0.03)"  # kpi-card bg
     bg_elev_2: str = "rgba(255,255,255,0.025)"  # top-card bg
     bg_hoverlabel: str = "#1A1A1A"
 
@@ -34,15 +35,15 @@ class Colors:
     text_value: str = "#F0F0F0"
     text_secondary: str = "#B0B0B0"
     text_card_title: str = "#E0E0E0"
-    text_muted: str = "#A8A8A8"    # WCAG AA 4.7:1 sobre #0E1117
+    text_muted: str = "#A8A8A8"  # WCAG AA 4.7:1 sobre #0E1117
     text_disabled: str = "#555555"
     text_plot_axis: str = "#A8A8A8"
     text_plot_body: str = "#A0A0A0"
 
     # Accents
-    accent_primary: str = "#86BC25"        # SAP green
+    accent_primary: str = "#86BC25"  # SAP green
     accent_primary_hover: str = "#6B9B1E"
-    accent_secondary: str = "#00A3E0"      # SAP blue
+    accent_secondary: str = "#00A3E0"  # SAP blue
     accent_secondary_hover: str = "#0083B3"
     danger: str = "#E21836"
 
@@ -54,13 +55,19 @@ class Colors:
     # st.metric, etc.). Son semánticamente distintos de los accents del CSS
     # custom porque Streamlit los aplica en otros contextos.
     st_primary: str = "#00B4D8"
-    st_bg_widget: str = "#1A1F2C"      # secondaryBackgroundColor
-    st_text: str = "#E8ECF1"           # textColor
+    st_bg_widget: str = "#1A1F2C"  # secondaryBackgroundColor
+    st_text: str = "#E8ECF1"  # textColor
 
     # Plotly categorical palette (orden = colorway)
     plotly_colorway: tuple[str, ...] = (
-        "#86BC25", "#00A3E0", "#A0A0A0", "#D0D0D0",
-        "#6B9B1E", "#0083B3", "#E0E0E0", "#66BB6A",
+        "#86BC25",
+        "#00A3E0",
+        "#A0A0A0",
+        "#D0D0D0",
+        "#6B9B1E",
+        "#0083B3",
+        "#E0E0E0",
+        "#66BB6A",
     )
 
 
@@ -113,9 +120,9 @@ class Type:
 
 @dataclass(frozen=True)
 class Breakpoints:
-    mobile_max: int = 640       # < 640px
-    tablet_max: int = 1024      # 641–1024
-    desktop_min: int = 1025     # ≥ 1025
+    mobile_max: int = 640  # < 640px
+    tablet_max: int = 1024  # 641–1024  # noqa: RUF003
+    desktop_min: int = 1025  # ≥ 1025
 
 
 @dataclass(frozen=True)

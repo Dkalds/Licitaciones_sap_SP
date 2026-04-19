@@ -1,4 +1,5 @@
-# Dependencias de desarrollo — no necesarias en producción
+# Generado desde requirements-dev.in con pip-compile.
+# Para regenerar: pip-compile --upgrade --resolver=backtracking requirements-dev.in
 -r requirements.txt
 
 pytest>=8.0.0,<9
@@ -8,3 +9,7 @@ mypy>=1.10.0,<2
 pip-audit>=2.7.0,<3
 pandas-stubs>=2.0.0,<3
 types-requests>=2.31.0
+pre-commit>=3.7.0,<5
+detect-secrets>=1.5.0,<2
+pip-tools>=7.4.0,<8
+httpx>=0.27.0,<1

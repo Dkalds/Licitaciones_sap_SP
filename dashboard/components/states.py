@@ -3,13 +3,14 @@
 El shimmer animation usa la clase `.skeleton` definida en `theme/css.py`.
 La animación se desactiva automáticamente con `prefers-reduced-motion: reduce`.
 """
+
 from __future__ import annotations
 
 import functools
 import html as _html
 import traceback
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Callable
 
 import streamlit as st
 
@@ -118,6 +119,7 @@ def guarded_render(fn: Callable) -> Callable:
 
     Activa el traceback completo si `?debug=1` está en la URL.
     """
+
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         debug = bool(st.query_params.get("debug"))
@@ -131,4 +133,5 @@ def guarded_render(fn: Callable) -> Callable:
                 exception=exc,
                 debug=debug,
             )
+
     return wrapper

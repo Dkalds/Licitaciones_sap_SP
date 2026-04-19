@@ -1,4 +1,5 @@
 """Tests para db/database.py — idempotencia del upsert y persistencia."""
+
 from __future__ import annotations
 
 import pytest
@@ -21,8 +22,10 @@ def tmp_db(monkeypatch, tmp_path):
     import importlib
 
     import config as cfg
+
     importlib.reload(cfg)
     import db.database as db_mod
+
     importlib.reload(db_mod)
 
     db_mod.init_db()

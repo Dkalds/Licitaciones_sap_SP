@@ -1,4 +1,5 @@
 """Página Competidores — análisis de adjudicatarios y posicionamiento."""
+
 from __future__ import annotations
 
 import html
@@ -48,11 +49,12 @@ def render(ctx: PageContext) -> None:
         return
 
     # ── Selector de empresa ──────────────────────────────────────
-    top_empresas = (adj_ci.groupby("empresa_key", dropna=True)
-                      .agg(nombre=("nombre_canonico", "first"),
-                           importe=("importe_adjudicado", "sum"))
-                      .sort_values("importe", ascending=False)
-                      .head(200))
+    top_empresas = (
+        adj_ci.groupby("empresa_key", dropna=True)
+        .agg(nombre=("nombre_canonico", "first"), importe=("importe_adjudicado", "sum"))
+        .sort_values("importe", ascending=False)
+        .head(200)
+    )
     opciones_ci = top_empresas["nombre"].tolist()
     sel_empresas = st.multiselect(
         "Selecciona una o varias empresas a analizar",
@@ -64,22 +66,23 @@ def render(ctx: PageContext) -> None:
         sel_empresas = opciones_ci[:5]
         st.caption("Mostrando top 5 por defecto.")
 
-    keys_ci = top_empresas[
-        top_empresas["nombre"].isin(sel_empresas)].index.tolist()
+    keys_ci = top_empresas[top_empresas["nombre"].isin(sel_empresas)].index.tolist()
     sub_ci = adj_ci[adj_ci["empresa_key"].isin(keys_ci)].copy()
     total_mercado = adj_ci["importe_adjudicado"].sum(skipna=True)
 
     # ── KPIs por empresa ────────────────────────────────────────
-    metr_ci = (sub_ci.groupby("empresa_key", dropna=True)
-                 .agg(empresa=("nombre_canonico", "first"),
-                      contratos=("id", "count"),
-                      volumen=("importe_adjudicado", "sum"),
-                      ticket_medio=("importe_adjudicado", "mean"),
-                      organos=("organo_contratacion", "nunique"))
-                 .reset_index(drop=True))
-    metr_ci["cuota_pct"] = (
-        metr_ci["volumen"] / total_mercado * 100
-        if total_mercado else 0)
+    metr_ci = (
+        sub_ci.groupby("empresa_key", dropna=True)
+        .agg(
+            empresa=("nombre_canonico", "first"),
+            contratos=("id", "count"),
+            volumen=("importe_adjudicado", "sum"),
+            ticket_medio=("importe_adjudicado", "mean"),
+            organos=("organo_contratacion", "nunique"),
+        )
+        .reset_index(drop=True)
+    )
+    metr_ci["cuota_pct"] = metr_ci["volumen"] / total_mercado * 100 if total_mercado else 0
 
     def _dep_cliente(key: str) -> float:
         s = sub_ci[sub_ci["empresa_key"] == key]["organo_contratacion"]
@@ -88,10 +91,10 @@ def render(ctx: PageContext) -> None:
         return float(s.value_counts(normalize=True).iloc[0] * 100)
 
     metr_ci["dep_cliente_pct"] = [
-        _dep_cliente(k) for k in
-        sub_ci.groupby("empresa_key").groups.keys()
+        _dep_cliente(k)
+        for k in sub_ci.groupby("empresa_key").groups.keys()
         if k in top_empresas.index
-    ][:len(metr_ci)]
+    ][: len(metr_ci)]
 
     st.subheader("KPIs de posición y dominio")
     kci_cols = st.columns(len(metr_ci) if len(metr_ci) <= 5 else 5)
@@ -99,11 +102,13 @@ def render(ctx: PageContext) -> None:
         col_i = kci_cols[i % len(kci_cols)]
         with col_i:
             st.markdown(
-                kpi_card(row_m["empresa"][:22],
-                         fmt_eur(row_m["volumen"]),
-                         delta=f"{row_m['cuota_pct']:.1f}% cuota · "
-                               f"{row_m['contratos']} contratos",
-                         delta_up=True, icon="🏢"),
+                kpi_card(
+                    row_m["empresa"][:22],
+                    fmt_eur(row_m["volumen"]),
+                    delta=f"{row_m['cuota_pct']:.1f}% cuota · {row_m['contratos']} contratos",
+                    delta_up=True,
+                    icon="🏢",
+                ),
                 unsafe_allow_html=True,
             )
 
@@ -113,96 +118,116 @@ def render(ctx: PageContext) -> None:
     cCI1, cCI2 = st.columns(2)
     with cCI1:
         st.subheader("Volumen adjudicado y cuota de mercado")
-        fig = px.bar(metr_ci.sort_values("volumen"),
-                     x="volumen", y="empresa", orientation="h",
-                     template=ctx.plotly_template,
-                     color="cuota_pct",
-                     color_continuous_scale="Greens",
-                     labels={"volumen": "Importe €",
-                             "empresa": "",
-                             "cuota_pct": "Cuota %"},
-                     hover_data=["contratos", "cuota_pct"])
-        fig.update_layout(height=360,
-                          margin=dict(t=10, b=10, l=10, r=10))
+        fig = px.bar(
+            metr_ci.sort_values("volumen"),
+            x="volumen",
+            y="empresa",
+            orientation="h",
+            template=ctx.plotly_template,
+            color="cuota_pct",
+            color_continuous_scale="Greens",
+            labels={"volumen": "Importe €", "empresa": "", "cuota_pct": "Cuota %"},
+            hover_data=["contratos", "cuota_pct"],
+        )
+        fig.update_layout(height=360, margin=dict(t=10, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
 
     with cCI2:
         st.subheader("Ticket medio vs Dependencia de cliente")
         if not metr_ci.empty and "dep_cliente_pct" in metr_ci.columns:
             fig = px.scatter(
-                metr_ci, x="ticket_medio", y="dep_cliente_pct",
-                size="contratos", color="cuota_pct",
+                metr_ci,
+                x="ticket_medio",
+                y="dep_cliente_pct",
+                size="contratos",
+                color="cuota_pct",
                 hover_name="empresa",
                 template=ctx.plotly_template,
                 color_continuous_scale="RdYlGn_r",
-                labels={"ticket_medio": "Ticket medio (€)",
-                        "dep_cliente_pct": "Dependencia cliente (%)",
-                        "cuota_pct": "Cuota %",
-                        "contratos": "Nº contratos"},
-                log_x=True)
-            fig.update_layout(height=360,
-                              margin=dict(t=10, b=10, l=10, r=10))
+                labels={
+                    "ticket_medio": "Ticket medio (€)",
+                    "dep_cliente_pct": "Dependencia cliente (%)",
+                    "cuota_pct": "Cuota %",
+                    "contratos": "Nº contratos",
+                },
+                log_x=True,
+            )
+            fig.update_layout(height=360, margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
-            st.caption("Arriba-izquierda = tickets pequeños + cliente cautivo. "
-                       "Abajo-derecha = alta diversificación.")
+            st.caption(
+                "Arriba-izquierda = tickets pequeños + cliente cautivo. "
+                "Abajo-derecha = alta diversificación."
+            )
 
     # ── Mapa de calor geográfico ─────────────────────────────────
     st.subheader("Distribución geográfica por CCAA")
-    geo_ci = (sub_ci.dropna(subset=["ccaa"])
-               .groupby(["nombre_canonico", "ccaa"])
-               .agg(importe=("importe_adjudicado", "sum"))
-               .reset_index())
+    geo_ci = (
+        sub_ci.dropna(subset=["ccaa"])
+        .groupby(["nombre_canonico", "ccaa"])
+        .agg(importe=("importe_adjudicado", "sum"))
+        .reset_index()
+    )
     if not geo_ci.empty:
         fig = px.density_heatmap(
-            geo_ci, x="ccaa", y="nombre_canonico",
-            z="importe", histfunc="sum",
+            geo_ci,
+            x="ccaa",
+            y="nombre_canonico",
+            z="importe",
+            histfunc="sum",
             template=ctx.plotly_template,
             color_continuous_scale="Greens",
-            labels={"ccaa": "CCAA",
-                    "nombre_canonico": "Empresa",
-                    "importe": "Importe €"})
-        fig.update_layout(height=max(280, len(sel_empresas) * 60),
-                          margin=dict(t=10, b=10, l=10, r=10))
+            labels={"ccaa": "CCAA", "nombre_canonico": "Empresa", "importe": "Importe €"},
+        )
+        fig.update_layout(
+            height=max(280, len(sel_empresas) * 60), margin=dict(t=10, b=10, l=10, r=10)
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     # ── Treemap de especialización CPV ───────────────────────────
     st.subheader("Especialización por CPV")
     cpv_ci = sub_ci.merge(
         df[["id_externo", "cpv_desc"]].drop_duplicates(),
-        left_on="licitacion_id", right_on="id_externo", how="left")
+        left_on="licitacion_id",
+        right_on="id_externo",
+        how="left",
+    )
     cpv_ci = cpv_ci.dropna(subset=["cpv_desc", "importe_adjudicado"])
     if not cpv_ci.empty:
         fig = px.treemap(
-            cpv_ci, path=["nombre_canonico", "cpv_desc"],
+            cpv_ci,
+            path=["nombre_canonico", "cpv_desc"],
             values="importe_adjudicado",
             template=ctx.plotly_template,
             color="importe_adjudicado",
             color_continuous_scale="Greens",
-            labels={"importe_adjudicado": "Importe €"})
-        fig.update_layout(height=480,
-                          margin=dict(t=10, b=10, l=10, r=10))
+            labels={"importe_adjudicado": "Importe €"},
+        )
+        fig.update_layout(height=480, margin=dict(t=10, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
 
     # ── Estacionalidad ───────────────────────────────────────────
     st.subheader("Estacionalidad de adjudicaciones")
     seas_ci = sub_ci.dropna(subset=["fecha_adjudicacion"]).copy()
     if not seas_ci.empty:
-        seas_ci["mes"] = (seas_ci["fecha_adjudicacion"]
-                           .dt.to_period("M").dt.to_timestamp())
-        seas_g = (seas_ci.groupby(["mes", "nombre_canonico"])
-                    .agg(importe=("importe_adjudicado", "sum"),
-                         n=("id", "count"))
-                    .reset_index())
+        seas_ci["mes"] = seas_ci["fecha_adjudicacion"].dt.to_period("M").dt.to_timestamp()
+        seas_g = (
+            seas_ci.groupby(["mes", "nombre_canonico"])
+            .agg(importe=("importe_adjudicado", "sum"), n=("id", "count"))
+            .reset_index()
+        )
         fig = px.line(
-            seas_g, x="mes", y="importe",
-            color="nombre_canonico", markers=True,
+            seas_g,
+            x="mes",
+            y="importe",
+            color="nombre_canonico",
+            markers=True,
             template=ctx.plotly_template,
             color_discrete_sequence=ctx.color_sequence,
-            labels={"mes": "", "importe": "Importe adjudicado (€)",
-                    "nombre_canonico": "Empresa"})
-        fig.update_layout(height=360,
-                          margin=dict(t=10, b=10, l=10, r=10),
-                          legend=dict(orientation="h", y=-0.2))
+            labels={"mes": "", "importe": "Importe adjudicado (€)", "nombre_canonico": "Empresa"},
+        )
+        fig.update_layout(
+            height=360, margin=dict(t=10, b=10, l=10, r=10), legend=dict(orientation="h", y=-0.2)
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     # ── Análisis de nicho (keywords frecuentes) ──────────────────
@@ -210,44 +235,73 @@ def render(ctx: PageContext) -> None:
     st.caption("Extraídas de los títulos y descripciones de sus contratos.")
 
     _STOPWORDS = {
-        "de", "del", "la", "el", "los", "las", "para", "por",
-        "en", "con", "y", "a", "e", "o", "un", "una", "se",
-        "su", "al", "que", "es", "no", "lo", "le", "como",
-        "una", "sus", "más", "este", "esta", "estos",
-        "servicio", "servicios", "contrato", "lote",
+        "de",
+        "del",
+        "la",
+        "el",
+        "los",
+        "las",
+        "para",
+        "por",
+        "en",
+        "con",
+        "y",
+        "a",
+        "e",
+        "o",
+        "un",
+        "una",
+        "se",
+        "su",
+        "al",
+        "que",
+        "es",
+        "no",
+        "lo",
+        "le",
+        "como",
+        "sus",
+        "más",
+        "este",
+        "esta",
+        "estos",
+        "servicio",
+        "servicios",
+        "contrato",
+        "lote",
     }
     nicho_cols = st.columns(min(len(sel_empresas), 3))
     for col_idx, emp_name in enumerate(sel_empresas[:3]):
-        key_emp = top_empresas[
-            top_empresas["nombre"] == emp_name].index
+        key_emp = top_empresas[top_empresas["nombre"] == emp_name].index
         if len(key_emp) == 0:
             continue
         rows_emp = sub_ci[sub_ci["empresa_key"] == key_emp[0]]
         lic_ids = set(rows_emp["licitacion_id"])
         textos = df[df["id_externo"].isin(lic_ids)].apply(
-            lambda r: f"{r.get('titulo','')} {r.get('descripcion','')}",
-            axis=1)
-        words = _re.findall(r"\b[a-záéíóúüñ]{4,}\b",
-                            " ".join(textos.dropna()).lower())
-        top_words = Counter(
-            w for w in words if w not in _STOPWORDS
-        ).most_common(12)
+            lambda r: f"{r.get('titulo', '')} {r.get('descripcion', '')}", axis=1
+        )
+        words = _re.findall(r"\b[a-záéíóúüñ]{4,}\b", " ".join(textos.dropna()).lower())
+        top_words = Counter(w for w in words if w not in _STOPWORDS).most_common(12)
         with nicho_cols[col_idx]:
             st.markdown(f"**{emp_name[:30]}**")
             if top_words:
-                wdf = pd.DataFrame(top_words,
-                                   columns=["palabra", "frecuencia"])
-                fig = px.bar(wdf, x="frecuencia", y="palabra",
-                             orientation="h",
-                             template=ctx.plotly_template,
-                             color="frecuencia",
-                             color_continuous_scale="Greys",
-                             labels={"frecuencia": "",
-                                     "palabra": ""})
+                wdf = pd.DataFrame(top_words, columns=["palabra", "frecuencia"])
+                fig = px.bar(
+                    wdf,
+                    x="frecuencia",
+                    y="palabra",
+                    orientation="h",
+                    template=ctx.plotly_template,
+                    color="frecuencia",
+                    color_continuous_scale="Greys",
+                    labels={"frecuencia": "", "palabra": ""},
+                )
                 fig.update_layout(
-                    height=320, showlegend=False,
+                    height=320,
+                    showlegend=False,
                     coloraxis_showscale=False,
-                    margin=dict(t=5, b=5, l=5, r=5))
+                    margin=dict(t=5, b=5, l=5, r=5),
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
     # ── Métricas comparativas por empresa ──────────────────────────
@@ -264,83 +318,95 @@ def render(ctx: PageContext) -> None:
     adj_m = adj_ci.copy()
     adj_m["es_monopolio"] = (adj_m["n_ofertas_recibidas"] == 1).astype(int)
 
-    metr = (adj_m.groupby("empresa_key", dropna=False)
-                   .agg(empresa=("nombre_canonico", "first"),
-                        nif=("nif_norm", "first"),
-                        contratos=("id", "count"),
-                        importe_total=("importe_adjudicado", "sum"),
-                        importe_medio=("importe_adjudicado", "mean"),
-                        baja_media=("baja_pct", "mean"),
-                        ofertas_medias=("n_ofertas_recibidas", "mean"),
-                        pct_monopolio=("es_monopolio",
-                                        lambda s: s.mean() * 100),
-                        organos=("organo_contratacion", "nunique"),
-                        pct_top_organo=("organo_contratacion",
-                                          _pct_top_organo),
-                        primera=("fecha_adjudicacion", "min"),
-                        ultima=("fecha_adjudicacion", "max"))
-                   .reset_index(drop=True))
+    metr = (
+        adj_m.groupby("empresa_key", dropna=False)
+        .agg(
+            empresa=("nombre_canonico", "first"),
+            nif=("nif_norm", "first"),
+            contratos=("id", "count"),
+            importe_total=("importe_adjudicado", "sum"),
+            importe_medio=("importe_adjudicado", "mean"),
+            baja_media=("baja_pct", "mean"),
+            ofertas_medias=("n_ofertas_recibidas", "mean"),
+            pct_monopolio=("es_monopolio", lambda s: s.mean() * 100),
+            organos=("organo_contratacion", "nunique"),
+            pct_top_organo=("organo_contratacion", _pct_top_organo),
+            primera=("fecha_adjudicacion", "min"),
+            ultima=("fecha_adjudicacion", "max"),
+        )
+        .reset_index(drop=True)
+    )
     metr = metr[metr["contratos"] >= 2].copy()
     if not metr.empty:
         antig_dias = (metr["ultima"] - metr["primera"]).dt.days
         antig_años = (antig_dias / 365.25).clip(lower=0.5)
         metr["contratos_año"] = (metr["contratos"] / antig_años).round(1)
         total_imp = metr["importe_total"].sum()
-        metr["cuota_pct"] = (
-            metr["importe_total"] / total_imp * 100
-            if total_imp else 0)
+        metr["cuota_pct"] = metr["importe_total"] / total_imp * 100 if total_imp else 0
         metr = metr.sort_values("importe_total", ascending=False)
 
         data_table(
-            metr[["empresa", "nif", "contratos", "contratos_año",
-                  "importe_total", "cuota_pct", "importe_medio",
-                  "baja_media", "ofertas_medias", "pct_monopolio",
-                  "organos", "pct_top_organo", "ultima"]].head(100),
+            metr[
+                [
+                    "empresa",
+                    "nif",
+                    "contratos",
+                    "contratos_año",
+                    "importe_total",
+                    "cuota_pct",
+                    "importe_medio",
+                    "baja_media",
+                    "ofertas_medias",
+                    "pct_monopolio",
+                    "organos",
+                    "pct_top_organo",
+                    "ultima",
+                ]
+            ].head(100),
             height=380,
             column_config={
-                "empresa": st.column_config.TextColumn("Empresa",
-                                                         width="large"),
+                "empresa": st.column_config.TextColumn("Empresa", width="large"),
                 "nif": st.column_config.TextColumn("NIF", width="small"),
                 "contratos": st.column_config.NumberColumn("Contratos"),
                 "contratos_año": st.column_config.NumberColumn("Contr./año"),
-                "importe_total": st.column_config.NumberColumn(
-                    "Importe total", format="%.0f €"),
-                "cuota_pct": st.column_config.NumberColumn(
-                    "Cuota %", format="%.1f%%"),
-                "importe_medio": st.column_config.NumberColumn(
-                    "Imp. medio", format="%.0f €"),
-                "baja_media": st.column_config.NumberColumn(
-                    "Baja media", format="%.1f%%"),
-                "ofertas_medias": st.column_config.NumberColumn(
-                    "Ofertas enfrent.", format="%.1f"),
-                "pct_monopolio": st.column_config.NumberColumn(
-                    "% Monopolio", format="%.0f%%"),
+                "importe_total": st.column_config.NumberColumn("Importe total", format="%.0f €"),
+                "cuota_pct": st.column_config.NumberColumn("Cuota %", format="%.1f%%"),
+                "importe_medio": st.column_config.NumberColumn("Imp. medio", format="%.0f €"),
+                "baja_media": st.column_config.NumberColumn("Baja media", format="%.1f%%"),
+                "ofertas_medias": st.column_config.NumberColumn("Ofertas enfrent.", format="%.1f"),
+                "pct_monopolio": st.column_config.NumberColumn("% Monopolio", format="%.0f%%"),
                 "organos": st.column_config.NumberColumn("Órganos"),
-                "pct_top_organo": st.column_config.NumberColumn(
-                    "% top-1 órgano", format="%.0f%%"),
+                "pct_top_organo": st.column_config.NumberColumn("% top-1 órgano", format="%.0f%%"),
                 "ultima": st.column_config.DateColumn("Última adj."),
             },
         )
 
         # Scatter: posicionamiento competitivo
         st.subheader("Mapa de posicionamiento competitivo")
-        scatter = metr.dropna(
-            subset=["importe_medio", "baja_media"]).head(60)
+        scatter = metr.dropna(subset=["importe_medio", "baja_media"]).head(60)
         if not scatter.empty:
             fig = px.scatter(
-                scatter, x="baja_media", y="importe_medio",
-                size="contratos", color="pct_monopolio",
+                scatter,
+                x="baja_media",
+                y="importe_medio",
+                size="contratos",
+                color="pct_monopolio",
                 hover_name="empresa",
                 template=ctx.plotly_template,
-                color_continuous_scale="RdYlGn_r", log_y=True,
-                labels={"baja_media": "Baja media (%) — agresividad",
-                          "importe_medio": "Importe medio (€, log)",
-                          "pct_monopolio": "% monopolio"})
-            fig.update_layout(height=480,
-                               margin=dict(t=20, b=10, l=10, r=10))
+                color_continuous_scale="RdYlGn_r",
+                log_y=True,
+                labels={
+                    "baja_media": "Baja media (%) — agresividad",
+                    "importe_medio": "Importe medio (€, log)",
+                    "pct_monopolio": "% monopolio",
+                },
+            )
+            fig.update_layout(height=480, margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
-            st.caption("Arriba-derecha: contratos grandes + baja agresiva. "
-                       "Arriba-izquierda rojo: clientes cautivos.")
+            st.caption(
+                "Arriba-derecha: contratos grandes + baja agresiva. "
+                "Arriba-izquierda rojo: clientes cautivos."
+            )
 
     # ── Buscador de empresas ─────────────────────────────────────
     st.divider()
@@ -350,35 +416,35 @@ def render(ctx: PageContext) -> None:
         placeholder="Ej: TELEFONICA, INDRA, B12345678...",
         key="empresa_search",
     )
-    ranking = (adj_ci.groupby("empresa_key", dropna=False)
-                   .agg(nombre=("nombre_canonico", "first"),
-                        nif=("nif_norm", "first"),
-                        variantes=("nombre", "nunique"),
-                        contratos=("id", "count"),
-                        importe_total=("importe_adjudicado", "sum"),
-                        organos=("organo_contratacion", "nunique"),
-                        ultima=("fecha_adjudicacion", "max"))
-                   .reset_index()
-                   .sort_values("importe_total", ascending=False))
+    ranking = (
+        adj_ci.groupby("empresa_key", dropna=False)
+        .agg(
+            nombre=("nombre_canonico", "first"),
+            nif=("nif_norm", "first"),
+            variantes=("nombre", "nunique"),
+            contratos=("id", "count"),
+            importe_total=("importe_adjudicado", "sum"),
+            organos=("organo_contratacion", "nunique"),
+            ultima=("fecha_adjudicacion", "max"),
+        )
+        .reset_index()
+        .sort_values("importe_total", ascending=False)
+    )
     if empresa_q:
-        mask = (ranking["nombre"].str.contains(
-                    empresa_q, case=False, na=False) |
-                ranking["nif"].fillna("").str.contains(
-                    empresa_q, case=False, na=False))
+        mask = ranking["nombre"].str.contains(empresa_q, case=False, na=False) | ranking[
+            "nif"
+        ].fillna("").str.contains(empresa_q, case=False, na=False)
         ranking = ranking[mask]
 
     data_table(
         ranking.drop(columns=["empresa_key"]),
         height=350,
         column_config={
-            "nombre": st.column_config.TextColumn("Empresa",
-                                                       width="large"),
-            "nif": st.column_config.TextColumn("NIF/CIF",
-                                                    width="small"),
+            "nombre": st.column_config.TextColumn("Empresa", width="large"),
+            "nif": st.column_config.TextColumn("NIF/CIF", width="small"),
             "variantes": st.column_config.NumberColumn("Variantes nombre"),
             "contratos": st.column_config.NumberColumn("Contratos"),
-            "importe_total": st.column_config.NumberColumn(
-                "Importe €", format="%.0f €"),
+            "importe_total": st.column_config.NumberColumn("Importe €", format="%.0f €"),
             "organos": st.column_config.NumberColumn("Órganos"),
             "ultima": st.column_config.DateColumn("Última adj."),
         },
@@ -396,86 +462,97 @@ def render(ctx: PageContext) -> None:
         key="drill_down_empresas",
     )
     if empresas_sel_dd:
-        keys_dd = opciones_df[
-            opciones_df["nombre"].isin(empresas_sel_dd)
-        ]["empresa_key"].tolist()
+        keys_dd = opciones_df[opciones_df["nombre"].isin(empresas_sel_dd)]["empresa_key"].tolist()
         sub_dd = adj_ci[adj_ci["empresa_key"].isin(keys_dd)].copy()
 
         cE1, cE2, cE3, cE4 = st.columns(4)
         cE1.metric("Empresas", len(empresas_sel_dd))
         cE2.metric("Contratos", len(sub_dd))
-        cE3.metric("Importe total",
-                    fmt_eur(sub_dd["importe_adjudicado"].sum()))
-        cE4.metric("Órganos distintos",
-                    sub_dd["organo_contratacion"].nunique())
+        cE3.metric("Importe total", fmt_eur(sub_dd["importe_adjudicado"].sum()))
+        cE4.metric("Órganos distintos", sub_dd["organo_contratacion"].nunique())
 
         if len(empresas_sel_dd) > 1:
-            comp_dd = (sub_dd.groupby("empresa_key")
-                         .agg(nombre=("nombre_canonico", "first"),
-                              contratos=("id", "count"),
-                              importe=("importe_adjudicado", "sum"))
-                         .reset_index(drop=True)
-                         .sort_values("importe", ascending=False))
+            comp_dd = (
+                sub_dd.groupby("empresa_key")
+                .agg(
+                    nombre=("nombre_canonico", "first"),
+                    contratos=("id", "count"),
+                    importe=("importe_adjudicado", "sum"),
+                )
+                .reset_index(drop=True)
+                .sort_values("importe", ascending=False)
+            )
             cV1, cV2 = st.columns(2)
             with cV1:
-                fig = px.bar(comp_dd.sort_values("importe"),
-                              x="importe", y="nombre",
-                              orientation="h",
-                              template=ctx.plotly_template,
-                              color="contratos",
-                              color_continuous_scale="YlGn",
-                              labels={"importe": "Importe €",
-                                      "nombre": "",
-                                      "contratos": "Contratos"})
-                fig.update_layout(height=350,
-                                  margin=dict(t=10, b=10, l=10, r=10))
+                fig = px.bar(
+                    comp_dd.sort_values("importe"),
+                    x="importe",
+                    y="nombre",
+                    orientation="h",
+                    template=ctx.plotly_template,
+                    color="contratos",
+                    color_continuous_scale="YlGn",
+                    labels={"importe": "Importe €", "nombre": "", "contratos": "Contratos"},
+                )
+                fig.update_layout(height=350, margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig, use_container_width=True)
             with cV2:
                 if sub_dd["fecha_adjudicacion"].notna().any():
-                    evo = (sub_dd.dropna(subset=["fecha_adjudicacion"])
-                              .assign(mes=lambda x: x["fecha_adjudicacion"]
-                                      .dt.to_period("M").dt.to_timestamp())
-                              .groupby(["mes", "nombre_canonico"])
-                              ["importe_adjudicado"].sum()
-                              .reset_index()
-                              .rename(columns={"nombre_canonico": "nombre"}))
-                    fig = px.line(evo, x="mes", y="importe_adjudicado",
-                                  color="nombre", markers=True,
-                                  template=ctx.plotly_template,
-                                  color_discrete_sequence=ctx.color_sequence,
-                                  labels={"mes": "",
-                                          "importe_adjudicado": "Importe €"})
-                    fig.update_layout(height=350,
-                                      margin=dict(t=10, b=10, l=10, r=10),
-                                      legend=dict(orientation="h", y=-0.2))
+                    evo = (
+                        sub_dd.dropna(subset=["fecha_adjudicacion"])
+                        .assign(
+                            mes=lambda x: (
+                                x["fecha_adjudicacion"].dt.to_period("M").dt.to_timestamp()
+                            )
+                        )
+                        .groupby(["mes", "nombre_canonico"])["importe_adjudicado"]
+                        .sum()
+                        .reset_index()
+                        .rename(columns={"nombre_canonico": "nombre"})
+                    )
+                    fig = px.line(
+                        evo,
+                        x="mes",
+                        y="importe_adjudicado",
+                        color="nombre",
+                        markers=True,
+                        template=ctx.plotly_template,
+                        color_discrete_sequence=ctx.color_sequence,
+                        labels={"mes": "", "importe_adjudicado": "Importe €"},
+                    )
+                    fig.update_layout(
+                        height=350,
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        legend=dict(orientation="h", y=-0.2),
+                    )
                     st.plotly_chart(fig, use_container_width=True)
 
         # Listado de proyectos
         st.subheader("Proyectos adjudicados")
         for empresa in empresas_sel_dd:
-            key = opciones_df[
-                opciones_df["nombre"] == empresa]["empresa_key"].iloc[0]
+            key = opciones_df[opciones_df["nombre"] == empresa]["empresa_key"].iloc[0]
             emp_proy = sub_dd[sub_dd["empresa_key"] == key]
             if len(empresas_sel_dd) > 1:
-                st.markdown(f"**{empresa}** "
-                              f"({len(emp_proy)} contratos · "
-                              f"{fmt_eur(emp_proy['importe_adjudicado'].sum())})")
-            for _, row in emp_proy.sort_values(
-                    "importe_adjudicado", ascending=False).iterrows():
+                st.markdown(
+                    f"**{empresa}** "
+                    f"({len(emp_proy)} contratos · "
+                    f"{fmt_eur(emp_proy['importe_adjudicado'].sum())})"
+                )
+            for _, row in emp_proy.sort_values("importe_adjudicado", ascending=False).iterrows():
                 url = row.get("url_lic") or "#"
                 baja = row.get("baja_pct")
                 baja_txt = f"{baja:.1f}% baja" if pd.notna(baja) else "—"
                 n_of = row.get("n_ofertas_recibidas")
                 n_of_txt = f"{int(n_of)} ofertas" if pd.notna(n_of) else "—"
-                fecha_adj = (row["fecha_adjudicacion"].date()
-                               if pd.notna(row["fecha_adjudicacion"])
-                               else "—")
+                fecha_adj = (
+                    row["fecha_adjudicacion"].date() if pd.notna(row["fecha_adjudicacion"]) else "—"
+                )
                 top_card(
                     amount=fmt_eur(row["importe_adjudicado"]),
                     title=str(row["titulo"] or ""),
                     meta=(
-                        f'{html.escape(str(row.get("organo_contratacion","—")))} · '
-                        f'Adj: {fecha_adj} · {baja_txt} · {n_of_txt}'
+                        f"{html.escape(str(row.get('organo_contratacion', '—')))} · "
+                        f"Adj: {fecha_adj} · {baja_txt} · {n_of_txt}"
                     ),
                     url=url,
                 )

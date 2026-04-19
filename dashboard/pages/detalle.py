@@ -1,4 +1,5 @@
 """Página Detalle — tabla completa y vista expandida."""
+
 from __future__ import annotations
 
 import streamlit as st
@@ -15,8 +16,9 @@ def render(ctx: PageContext) -> None:
     df = ctx.df
 
     st.subheader(f"Detalle de licitaciones ({len(df)})")
-    st.caption("Plataforma de Contratación del Sector Público — "
-               "reutilización al amparo de la Ley 37/2007")
+    st.caption(
+        "Plataforma de Contratación del Sector Público — reutilización al amparo de la Ley 37/2007"
+    )
 
     cdl1, cdl2 = st.columns([1, 6])
     with cdl1:
@@ -24,21 +26,30 @@ def render(ctx: PageContext) -> None:
             "⬇️ Excel",
             data=to_excel_bytes(df),
             file_name="licitaciones_sap.xlsx",
-            mime="application/vnd.openxmlformats-officedocument."
-                 "spreadsheetml.sheet",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
     with cdl2:
         st.download_button(
             "⬇️ CSV",
-            data=df.drop(columns=["modulos"]).to_csv(index=False)
-                   .encode("utf-8-sig"),
-            file_name="licitaciones_sap.csv", mime="text/csv",
+            data=df.drop(columns=["modulos"]).to_csv(index=False).encode("utf-8-sig"),
+            file_name="licitaciones_sap.csv",
+            mime="text/csv",
         )
 
-    cols = ["fecha_publicacion", "titulo", "organo_contratacion",
-             "ccaa", "importe", "moneda", "estado_desc",
-             "tipo_proyecto", "modulos_str", "cpv_desc", "url"]
+    cols = [
+        "fecha_publicacion",
+        "titulo",
+        "organo_contratacion",
+        "ccaa",
+        "importe",
+        "moneda",
+        "estado_desc",
+        "tipo_proyecto",
+        "modulos_str",
+        "cpv_desc",
+        "url",
+    ]
     cols = [c for c in cols if c in df.columns]
     show = df[cols].sort_values("fecha_publicacion", ascending=False)
 
@@ -46,14 +57,11 @@ def render(ctx: PageContext) -> None:
         show,
         height=600,
         column_config={
-            "fecha_publicacion": st.column_config.DatetimeColumn(
-                "Fecha", format="DD-MM-YYYY"),
+            "fecha_publicacion": st.column_config.DatetimeColumn("Fecha", format="DD-MM-YYYY"),
             "titulo": st.column_config.TextColumn("Título", width="large"),
-            "organo_contratacion": st.column_config.TextColumn(
-                "Órgano", width="medium"),
+            "organo_contratacion": st.column_config.TextColumn("Órgano", width="medium"),
             "ccaa": st.column_config.TextColumn("CCAA", width="small"),
-            "importe": st.column_config.NumberColumn(
-                "Importe", format="%.0f €"),
+            "importe": st.column_config.NumberColumn("Importe", format="%.0f €"),
             "estado_desc": st.column_config.TextColumn("Estado"),
             "tipo_proyecto": st.column_config.TextColumn("Tipo"),
             "modulos_str": st.column_config.TextColumn("Módulos"),
@@ -64,26 +72,25 @@ def render(ctx: PageContext) -> None:
 
     st.divider()
     st.subheader("🔎 Vista expandida (clic para ver descripción completa)")
-    for _, row in df.sort_values("fecha_publicacion",
-                                   ascending=False).head(20).iterrows():
-        with st.expander(
-            f"💼 {fmt_eur(row['importe'])} — {row['titulo'][:90]}"
-        ):
+    for _, row in df.sort_values("fecha_publicacion", ascending=False).head(20).iterrows():
+        with st.expander(f"💼 {fmt_eur(row['importe'])} — {row['titulo'][:90]}"):
             cE1, cE2 = st.columns([2, 1])
             with cE1:
-                st.markdown(f"**Órgano:** {row.get('organo_contratacion','—')}")
-                st.markdown(f"**Estado:** {row.get('estado_desc','—')} · "
-                            f"**Tipo proyecto:** {row.get('tipo_proyecto','—')}")
-                st.markdown(f"**Módulos SAP detectados:** "
-                            f"{row.get('modulos_str','—')}")
-                st.markdown(f"**CPV:** {row.get('cpv_desc','—')}")
-                st.markdown(f"**Provincia / CCAA:** "
-                            f"{row.get('provincia','—')} · "
-                            f"{row.get('ccaa','—')}")
+                st.markdown(f"**Órgano:** {row.get('organo_contratacion', '—')}")
+                st.markdown(
+                    f"**Estado:** {row.get('estado_desc', '—')} · "
+                    f"**Tipo proyecto:** {row.get('tipo_proyecto', '—')}"
+                )
+                st.markdown(f"**Módulos SAP detectados:** {row.get('modulos_str', '—')}")
+                st.markdown(f"**CPV:** {row.get('cpv_desc', '—')}")
+                st.markdown(
+                    f"**Provincia / CCAA:** {row.get('provincia', '—')} · {row.get('ccaa', '—')}"
+                )
                 st.markdown("**Descripción:**")
                 st.write(row.get("descripcion") or "—")
             with cE2:
                 st.metric("Importe", fmt_eur(row["importe"]))
                 if row.get("url"):
-                    st.link_button("📄 Ver licitación oficial",
-                                    row["url"], use_container_width=True)
+                    st.link_button(
+                        "📄 Ver licitación oficial", row["url"], use_container_width=True
+                    )

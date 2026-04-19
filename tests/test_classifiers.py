@@ -1,4 +1,5 @@
 """Tests para dashboard/classifiers.py — clasificadores de datos."""
+
 from __future__ import annotations
 
 from dashboard.classifiers import (
@@ -38,6 +39,7 @@ class TestNutsToCcaa:
 
     def test_todos_los_nuts3_conocidos_mapeados(self):
         from dashboard.classifiers import NUTS3_TO_CCAA
+
         for code in NUTS3_TO_CCAA:
             assert nuts_to_ccaa(code) is not None
 

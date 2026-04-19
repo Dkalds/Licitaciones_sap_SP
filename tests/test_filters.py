@@ -1,4 +1,5 @@
 """Tests para scraper/filters.py — detección de keywords SAP."""
+
 from __future__ import annotations
 
 from scraper.filters import matches_sap

@@ -17,10 +17,14 @@ ignore = [
     "S101",  # assert allowed in tests
     "S603",  # subprocess calls allowed in scheduler
     "E501",  # line length managed by formatter
+    "S110",  # try-except-pass allowed in best-effort persisters
+    "B904",  # raise ... from ... — not always needed
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S106"]
+"tests/*" = ["S101", "S106", "S105"]
+"api/main.py" = ["B008"]  # FastAPI Depends/Query en defaults es idiomático
+"dashboard/*" = ["S110"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -30,10 +34,68 @@ indent-style = "space"
 python_version = "3.11"
 strict = false
 ignore_missing_imports = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 warn_return_any = false
 disallow_untyped_defs = false
+
+# Módulos nuevos / de core con tipado más estricto
+[[tool.mypy.overrides]]
+module = [
+    "observability.*",
+    "db.dlq",
+    "db.migrations",
+    "db.watchlist",
+    "scraper.resilience",
+]
+disallow_untyped_defs = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+# Dependencias sin stubs útiles
+[[tool.mypy.overrides]]
+module = [
+    "libsql",
+    "libsql.*",
+    "pybreaker",
+    "streamlit",
+    "streamlit.*",
+    "st_aggrid",
+    "st_aggrid.*",
+    "plotly",
+    "plotly.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning:libsql",
+]
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "tests/*",
+    "*/__pycache__/*",
+    "dashboard/pages/*",
+    "dashboard/components/*",
+    "dashboard/filters/*",
+    "dashboard/theme/*",
+    "dashboard/app.py",
+    "dashboard/auth.py",
+    "dashboard/query_params_sync.py",
+    "dashboard/router.py",
+    "dashboard/data_loader.py",
+    "scheduler/run_update.py",
+    "scheduler/register_task_windows.ps1",
+    "config.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

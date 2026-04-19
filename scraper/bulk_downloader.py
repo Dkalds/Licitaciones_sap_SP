@@ -8,16 +8,16 @@ URL pattern (verificar contra la última publicación oficial):
   https://contrataciondelsectorpublico.gob.es/sindicacion/sindicacion_643/
   licitacionesPerfilesContratanteCompleto3_YYYYMM.zip
 """
+
 from __future__ import annotations
 
-import logging
 import time
 import zipfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
+import pybreaker
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from config import (
     DOWNLOADS_DIR,
@@ -27,8 +27,10 @@ from config import (
     USER_AGENT,
     ensure_data_dirs,
 )
+from observability.logging import get_logger
+from scraper.resilience import http_retry, placsp_breaker
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 # Rutas base conocidas para los datasets mensuales
 BULK_URL_TEMPLATE = (
@@ -37,13 +39,12 @@ BULK_URL_TEMPLATE = (
 )
 
 
-@retry(stop=stop_after_attempt(3),
-       wait=wait_exponential(multiplier=2, min=4, max=30))
+@placsp_breaker
+@http_retry
 def _download(url: str, dest: Path) -> Path:
-    log.info("Descargando %s", url)
+    log.info("bulk_download_start", url=url, dest=str(dest))
     headers = {"User-Agent": USER_AGENT}
-    with requests.get(url, headers=headers, stream=True,
-                      timeout=REQUEST_TIMEOUT) as r:
+    with requests.get(url, headers=headers, stream=True, timeout=REQUEST_TIMEOUT) as r:
         r.raise_for_status()
         content_length = r.headers.get("Content-Length")
         if content_length is not None:
@@ -60,41 +61,43 @@ def _download(url: str, dest: Path) -> Path:
                 if downloaded > MAX_DOWNLOAD_SIZE_BYTES:
                     dest.unlink(missing_ok=True)
                     raise ValueError(
-                        f"Descarga abortada: tamaño real supera "
-                        f"{MAX_DOWNLOAD_SIZE_BYTES:,} bytes."
+                        f"Descarga abortada: tamaño real supera {MAX_DOWNLOAD_SIZE_BYTES:,} bytes."
                     )
                 f.write(chunk)
+    log.info("bulk_download_ok", url=url, bytes=downloaded)
     return dest
 
 
-def download_month(year: int, month: int,
-                   force: bool = False) -> Path | None:
+class CircuitOpenError(RuntimeError):
+    """El circuit breaker está abierto — PLACSP está caído."""
+
+
+def download_month(year: int, month: int, force: bool = False) -> Path | None:
     """Descarga el ZIP mensual. Devuelve la ruta o None si no existe."""
     ensure_data_dirs()
     url = BULK_URL_TEMPLATE.format(year=year, month=month)
     dest = DOWNLOADS_DIR / f"placsp_{year}{month:02d}.zip"
 
     if dest.exists() and not force:
-        # Verificar que el archivo existente es un ZIP válido
         if zipfile.is_zipfile(dest):
-            log.info("Ya existe %s, saltando", dest.name)
+            log.info("bulk_cache_hit", dest=dest.name)
             return dest
-        else:
-            log.warning("Archivo corrupto %s, re-descargando", dest.name)
-            dest.unlink()
+        log.warning("bulk_cache_corrupt", dest=dest.name)
+        dest.unlink()
 
     try:
         time.sleep(REQUEST_DELAY_SECONDS)
         _download(url, dest)
-        # Validar que lo descargado es realmente un ZIP
         if not zipfile.is_zipfile(dest):
-            log.warning("El archivo descargado para %s-%02d no es un ZIP válido, ignorando", year, month)
+            log.warning("bulk_not_a_zip", year=year, month=month)
             dest.unlink(missing_ok=True)
             return None
         return dest
+    except pybreaker.CircuitBreakerError as e:
+        raise CircuitOpenError(str(e)) from e
     except requests.HTTPError as e:
         if e.response is not None and e.response.status_code == 404:
-            log.warning("No publicado aún: %s-%02d", year, month)
+            log.warning("bulk_not_published", year=year, month=month)
             return None
         raise
 

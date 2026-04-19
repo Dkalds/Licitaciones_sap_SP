@@ -1,4 +1,5 @@
 """Configuración global del proyecto."""
+
 import os
 import warnings
 from pathlib import Path
@@ -18,8 +19,7 @@ DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
 # Turso (libSQL cloud) — ambas variables son necesarias para activar Turso
 TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL", "")
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
-TURSO_LOCAL_DB = Path(os.environ.get(
-    "TURSO_LOCAL_DB", DATA_DIR / "licitaciones_replica.db"))
+TURSO_LOCAL_DB = Path(os.environ.get("TURSO_LOCAL_DB", DATA_DIR / "licitaciones_replica.db"))
 
 # Validar que Turso se configura con URL y token simultáneamente
 if bool(TURSO_DATABASE_URL) ^ bool(TURSO_AUTH_TOKEN):
@@ -36,6 +36,7 @@ def ensure_data_dirs() -> None:
     """Crea los directorios de datos si no existen. Llamar explícitamente."""
     DATA_DIR.mkdir(exist_ok=True)
     DOWNLOADS_DIR.mkdir(exist_ok=True)
+
 
 # Palabras clave para filtrar licitaciones SAP
 SAP_KEYWORDS = [
@@ -129,8 +130,8 @@ SAP_KEYWORDS = [
 
 # CPV codes relevantes (servicios TI / software)
 CPV_PREFIXES_TI = [
-    "72",   # Servicios TI
-    "48",   # Paquetes de software
+    "72",  # Servicios TI
+    "48",  # Paquetes de software
 ]
 
 # URL base de la Plataforma de Contratación
@@ -138,9 +139,7 @@ PLACE_BASE_URL = "https://contrataciondelestado.es"
 PLACE_SYNDICATION_BASE = f"{PLACE_BASE_URL}/sindicacion"
 
 # Endpoint de búsqueda (form-based)
-PLACE_SEARCH_URL = (
-    f"{PLACE_BASE_URL}/wps/portal/plataforma/buscadores/busqueda/"
-)
+PLACE_SEARCH_URL = f"{PLACE_BASE_URL}/wps/portal/plataforma/buscadores/busqueda/"
 
 # User agent identificable (buena práctica scraping ético)
 USER_AGENT = "LicitacionesSAP-Bot/1.0"
@@ -149,5 +148,5 @@ REQUEST_TIMEOUT = 30
 REQUEST_DELAY_SECONDS = 1.5  # delay entre requests para no saturar
 
 # Límites de tamaño para descargas (defensa contra recursos excesivos)
-MAX_DOWNLOAD_SIZE_BYTES = 200 * 1024 * 1024   # 200 MB por ZIP mensual
-MAX_XML_SIZE_BYTES = 150 * 1024 * 1024        # 150 MB por fichero XML
+MAX_DOWNLOAD_SIZE_BYTES = 200 * 1024 * 1024  # 200 MB por ZIP mensual
+MAX_XML_SIZE_BYTES = 150 * 1024 * 1024  # 150 MB por fichero XML

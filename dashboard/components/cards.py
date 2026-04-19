@@ -1,4 +1,5 @@
 """Componentes de tarjeta — top_card para licitaciones y adjudicaciones."""
+
 from __future__ import annotations
 
 import html as _html

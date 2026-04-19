@@ -34,7 +34,7 @@ jobs:
         run: ruff format --check .
 
       - name: Type check (mypy)
-        run: mypy dashboard/ scraper/ db/ scheduler/ config.py
+        run: mypy dashboard/ scraper/ db/ scheduler/ observability/ api/ config.py
 
   test:
     name: Tests
@@ -53,7 +53,29 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run tests with coverage
-        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=60
+        run: pytest --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      - name: Upload coverage XML
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  pre-commit:
+    name: pre-commit checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: pre-commit/action@v3.0.1
 
   audit:
     name: Security audit

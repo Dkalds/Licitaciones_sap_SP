@@ -1,4 +1,5 @@
 """Componente KPI card — genera HTML para st.markdown."""
+
 from __future__ import annotations
 
 import html as _html
@@ -27,9 +28,7 @@ def kpi_card(
         safe_delta = _html.escape(str(delta))
         delta_html = f'<div class="delta {cls}">{arrow} {safe_delta}</div>'
 
-    icon_html = (
-        f'<span class="icon" aria-hidden="true">{icon}</span>' if icon else ""
-    )
+    icon_html = f'<span class="icon" aria-hidden="true">{icon}</span>' if icon else ""
 
     return (
         f'<div class="kpi-card" role="group" aria-label="{aria}">'

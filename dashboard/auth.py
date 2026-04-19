@@ -1,4 +1,5 @@
 """Autenticación del dashboard — login con contraseña única."""
+
 from __future__ import annotations
 
 import hmac
@@ -43,7 +44,7 @@ def _record_failed_attempt() -> None:
     st.session_state["_login_attempts"] = attempts
     if attempts >= _MAX_ATTEMPTS_BEFORE_LOCKOUT:
         exponent = attempts - _MAX_ATTEMPTS_BEFORE_LOCKOUT + 1
-        delay = min(2 ** exponent, _MAX_LOCKOUT_SECONDS)
+        delay = min(2**exponent, _MAX_LOCKOUT_SECONDS)
         st.session_state["_login_lockout_until"] = time.time() + delay
 
 
