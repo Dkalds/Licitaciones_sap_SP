@@ -21,6 +21,7 @@ from observability import (
     get_logger,
     notify,
 )
+from scheduler.watchlist_alerts import check_and_notify
 from scraper.pipeline import backfill, update_recent
 
 
@@ -83,6 +84,12 @@ def main() -> int:
             total_bd=total_db,
         )
         return 1
+
+    try:
+        check_and_notify()
+    except Exception:
+        log.exception("watchlist_alert_error")
+
     return 0
 
 

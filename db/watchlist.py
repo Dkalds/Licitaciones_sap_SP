@@ -66,12 +66,21 @@ def remove_entry(entry_id: int) -> None:
 def list_entries(user_key: str) -> list[dict[str, Any]]:
     with connect() as c:
         cur = c.execute(
-            "SELECT id, cpv_prefix, keyword, min_importe, ccaa, created_at "
+            "SELECT id, cpv_prefix, keyword, min_importe, ccaa, created_at, last_notified_at "
             "FROM watchlist_cpv WHERE user_key = ? ORDER BY created_at DESC",
             (user_key,),
         )
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
+
+
+def update_last_notified(entry_id: int, ts: str) -> None:
+    """Actualiza la marca de tiempo de última notificación para una entrada."""
+    with connect() as c:
+        c.execute(
+            "UPDATE watchlist_cpv SET last_notified_at = ? WHERE id = ?",
+            (ts, entry_id),
+        )
 
 
 def matches_licitacion(entry: dict[str, Any], licitacion: dict[str, Any]) -> bool:

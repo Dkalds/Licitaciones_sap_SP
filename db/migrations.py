@@ -75,6 +75,13 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_wl_user ON watchlist_cpv(user_key);
         """,
     ),
+    (
+        3,
+        "watchlist_last_notified",
+        """
+        ALTER TABLE watchlist_cpv ADD COLUMN last_notified_at TEXT;
+        """,
+    ),
 ]
 
 
