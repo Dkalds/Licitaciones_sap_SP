@@ -99,19 +99,29 @@ def _build_html(level: AlertLevel, title: str, body: str,
     """)
 
 
-def _send_smtp(level: AlertLevel, title: str, body: str,
-               context: dict[str, Any]) -> None:
-    """Envía el email usando SMTP con STARTTLS."""
-    to_addr = os.environ.get("ALERT_EMAIL_TO", "").strip()
+def _send_smtp(
+    level: AlertLevel,
+    title: str,
+    body: str,
+    context: dict[str, Any],
+    *,
+    to_addr: str | None = None,
+) -> None:
+    """Envía el email usando SMTP con STARTTLS.
+
+    ``to_addr`` sobreescribe la variable de entorno ``ALERT_EMAIL_TO``
+    cuando se especifica (útil para notificaciones por destinatario).
+    """
+    recipient = (to_addr or os.environ.get("ALERT_EMAIL_TO", "")).strip()
     user = os.environ.get("ALERT_SMTP_USER", "").strip()
     password = os.environ.get("ALERT_SMTP_PASSWORD", "").strip()
     host = os.environ.get("ALERT_SMTP_HOST", "smtp.gmail.com").strip()
     port = int(os.environ.get("ALERT_SMTP_PORT", "587"))
 
-    if not (to_addr and user and password):
+    if not (recipient and user and password):
         log.debug("alert_smtp_not_configured", missing=[
             k for k, v in {
-                "ALERT_EMAIL_TO": to_addr,
+                "ALERT_EMAIL_TO": recipient,
                 "ALERT_SMTP_USER": user,
                 "ALERT_SMTP_PASSWORD": password,
             }.items() if not v
@@ -124,7 +134,7 @@ def _send_smtp(level: AlertLevel, title: str, body: str,
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = user
-    msg["To"] = to_addr
+    msg["To"] = recipient
     msg.attach(MIMEText(body, "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
 
@@ -133,8 +143,8 @@ def _send_smtp(level: AlertLevel, title: str, body: str,
             server.ehlo()
             server.starttls()
             server.login(user, password)
-            server.sendmail(user, [to_addr], msg.as_string())
-        log.info("alert_email_sent", to=to_addr, subject=subject)
+            server.sendmail(user, [recipient], msg.as_string())
+        log.info("alert_email_sent", to=recipient, subject=subject)
     except smtplib.SMTPException as e:
         log.warning("alert_email_failed", error=str(e))
     except OSError as e:
@@ -145,12 +155,16 @@ def notify(
     level: AlertLevel | str,
     title: str,
     body: str = "",
+    *,
+    to_addr: str | None = None,
     **context: Any,
 ) -> None:
     """Envía una alerta. Seguro de llamar sin configuración (solo loguea).
 
     ``level`` puede ser un enum ``AlertLevel`` o cadena (``info``/``warn``/
     ``error``/``critical``).
+
+    ``to_addr`` sobreescribe el destinatario de ``ALERT_EMAIL_TO`` del entorno.
     """
     if isinstance(level, str):
         level = _LEVEL_NAMES.get(level.lower(), AlertLevel.WARN)
@@ -171,4 +185,4 @@ def notify(
         **context,
     )
 
-    _send_smtp(level, title, body, context)
+    _send_smtp(level, title, body, context, to_addr=to_addr)

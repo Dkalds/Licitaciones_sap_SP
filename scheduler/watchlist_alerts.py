@@ -97,48 +97,68 @@ def check_and_notify() -> int:
         datetime.utcnow() - timedelta(days=_LOOKBACK_DAYS)
     ).date().isoformat()
 
-    matches_by_entry: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
+    # Agrupar entradas por email destinatario para enviar un único correo por persona
+    from collections import defaultdict
+    by_email: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    entries_without_email: list[dict[str, Any]] = []
 
     for entry in entries:
-        raw_since = entry.get("last_notified_at") or default_since
-        since_date = str(raw_since)[:10]  # truncar a YYYY-MM-DD
+        if entry.get("email"):
+            by_email[entry["email"]].append(entry)
+        else:
+            entries_without_email.append(entry)
 
-        candidates = _query_licitaciones_since(entry["cpv_prefix"], since_date)
-        matched = [lic for lic in candidates if matches_licitacion(entry, lic)]
+    total_notified = 0
 
-        log.debug(
-            "watchlist_entry_checked",
-            cpv=entry["cpv_prefix"],
-            keyword=entry.get("keyword"),
-            since=since_date,
-            candidates=len(candidates),
-            matches=len(matched),
+    # --- Entradas con email: notificar por destinatario ---
+    for recipient, recipient_entries in by_email.items():
+        matches_by_entry: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
+
+        for entry in recipient_entries:
+            raw_since = entry.get("last_notified_at") or default_since
+            since_date = str(raw_since)[:10]
+
+            candidates = _query_licitaciones_since(entry["cpv_prefix"], since_date)
+            matched = [lic for lic in candidates if matches_licitacion(entry, lic)]
+
+            log.debug(
+                "watchlist_entry_checked",
+                cpv=entry["cpv_prefix"],
+                keyword=entry.get("keyword"),
+                since=since_date,
+                candidates=len(candidates),
+                matches=len(matched),
+                recipient=recipient,
+            )
+
+            if matched:
+                matches_by_entry.append((entry, matched))
+
+        # Actualizar last_notified_at siempre (aunque no haya matches)
+        for entry in recipient_entries:
+            update_last_notified(int(entry["id"]), now_ts)
+
+        if not matches_by_entry:
+            continue
+
+        n = sum(len(lics) for _, lics in matches_by_entry)
+        body = _build_body(matches_by_entry)
+        notify(
+            AlertLevel.INFO,
+            f"Watchlist: {n} licitación(es) nueva(s)",
+            body,
+            to_addr=recipient,
+            entradas_con_coincidencias=len(matches_by_entry),
+            total_coincidencias=n,
         )
+        log.info("watchlist_alert_sent", recipient=recipient, total=n)
+        total_notified += n
 
-        if matched:
-            matches_by_entry.append((entry, matched))
-
-    # Siempre actualizamos last_notified_at para no acumular ventana
-    for entry in entries:
+    # --- Entradas sin email: solo actualizar timestamp (se muestran en dashboard) ---
+    for entry in entries_without_email:
         update_last_notified(int(entry["id"]), now_ts)
 
-    if not matches_by_entry:
+    if total_notified == 0:
         log.info("watchlist_no_new_matches", entries=len(entries))
-        return 0
 
-    total = sum(len(lics) for _, lics in matches_by_entry)
-    body = _build_body(matches_by_entry)
-
-    notify(
-        AlertLevel.INFO,
-        f"Watchlist: {total} licitación(es) nueva(s)",
-        body,
-        entradas_con_coincidencias=len(matches_by_entry),
-        total_coincidencias=total,
-    )
-    log.info(
-        "watchlist_alert_sent",
-        total=total,
-        entries_with_matches=len(matches_by_entry),
-    )
-    return total
+    return total_notified

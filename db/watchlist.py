@@ -19,6 +19,7 @@ class WatchlistEntry:
     keyword: str | None = None
     min_importe: float | None = None
     ccaa: str | None = None
+    email: str | None = None
 
 
 def add_entry(entry: WatchlistEntry) -> None:
@@ -45,14 +46,15 @@ def add_entry(entry: WatchlistEntry) -> None:
             return
         c.execute(
             "INSERT INTO watchlist_cpv "
-            "(user_key, cpv_prefix, keyword, min_importe, ccaa, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(user_key, cpv_prefix, keyword, min_importe, ccaa, email, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 entry.user_key,
                 entry.cpv_prefix,
                 entry.keyword,
                 entry.min_importe,
                 entry.ccaa,
+                entry.email,
                 datetime.utcnow().isoformat(),
             ),
         )
@@ -66,7 +68,7 @@ def remove_entry(entry_id: int) -> None:
 def list_entries(user_key: str) -> list[dict[str, Any]]:
     with connect() as c:
         cur = c.execute(
-            "SELECT id, cpv_prefix, keyword, min_importe, ccaa, created_at, last_notified_at "
+            "SELECT id, cpv_prefix, keyword, min_importe, ccaa, email, created_at, last_notified_at "
             "FROM watchlist_cpv WHERE user_key = ? ORDER BY created_at DESC",
             (user_key,),
         )

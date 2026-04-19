@@ -82,6 +82,13 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE watchlist_cpv ADD COLUMN last_notified_at TEXT;
         """,
     ),
+    (
+        4,
+        "watchlist_email",
+        """
+        ALTER TABLE watchlist_cpv ADD COLUMN email TEXT;
+        """,
+    ),
 ]
 
 

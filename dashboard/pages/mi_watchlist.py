@@ -58,6 +58,14 @@ def render(ctx: PageContext) -> None:
         with col4:
             ccaas = sorted(ctx.df_full["ccaa"].dropna().unique().tolist())
             ccaa = st.selectbox("CCAA (opcional)", ["(todas)", *ccaas], key="wl_ccaa")
+        email = st.text_input(
+            "Email de notificación (opcional)",
+            value="",
+            placeholder="tucorreo@ejemplo.com",
+            key="wl_email",
+            help="Si lo rellenas recibirás un email cada vez que aparezca "
+                 "una licitación que encaje con estos criterios.",
+        )
         if st.button("Guardar", type="primary"):
             if not cpv.strip():
                 st.error("El CPV es obligatorio.")
@@ -69,6 +77,7 @@ def render(ctx: PageContext) -> None:
                         keyword=kw.strip() or None,
                         min_importe=float(imp) if imp else None,
                         ccaa=None if ccaa == "(todas)" else ccaa,
+                        email=email.strip() or None,
                     )
                 )
                 st.success("Entrada guardada.")
@@ -84,13 +93,14 @@ def render(ctx: PageContext) -> None:
 
     st.markdown("#### Entradas activas")
     for e in entries:
-        c1, c2, c3, c4, c5, c6 = st.columns([1, 2, 1, 1, 2, 1])
+        c1, c2, c3, c4, c5, c6, c7 = st.columns([1, 2, 1, 1, 2, 2, 1])
         c1.code(e["cpv_prefix"])
         c2.write(e.get("keyword") or "—")
         c3.write(fmt_eur(e["min_importe"]) if e.get("min_importe") else "—")
         c4.write(e.get("ccaa") or "—")
-        c5.caption(e.get("created_at", ""))
-        if c6.button("🗑️", key=f"wl_rm_{e['id']}"):
+        c5.caption(e.get("email") or "sin email")
+        c6.caption(e.get("created_at", ""))
+        if c7.button("🗑️", key=f"wl_rm_{e['id']}"):
             remove_entry(int(e["id"]))
             st.rerun()
 
