@@ -57,10 +57,10 @@ _LEVEL_COLORS = {
 }
 
 _LEVEL_EMOJI = {
-    AlertLevel.INFO: "ℹ️",
-    AlertLevel.WARN: "⚠️",
-    AlertLevel.ERROR: "❌",
-    AlertLevel.CRITICAL: "🚨",
+    AlertLevel.INFO: "\u2139\ufe0f",
+    AlertLevel.WARN: "\u26a0\ufe0f",
+    AlertLevel.ERROR: "\u274c",
+    AlertLevel.CRITICAL: "\U0001f6a8",
 }
 
 
@@ -69,8 +69,7 @@ def _min_level() -> AlertLevel:
     return _LEVEL_NAMES.get(raw, AlertLevel.WARN)
 
 
-def _build_html(level: AlertLevel, title: str, body: str,
-                context: dict[str, Any]) -> str:
+def _build_html(level: AlertLevel, title: str, body: str, context: dict[str, Any]) -> str:
     color = _LEVEL_COLORS[level]
     emoji = _LEVEL_EMOJI[level]
     ctx_rows = "".join(
@@ -119,13 +118,18 @@ def _send_smtp(
     port = int(os.environ.get("ALERT_SMTP_PORT", "587"))
 
     if not (recipient and user and password):
-        log.debug("alert_smtp_not_configured", missing=[
-            k for k, v in {
-                "ALERT_EMAIL_TO": recipient,
-                "ALERT_SMTP_USER": user,
-                "ALERT_SMTP_PASSWORD": password,
-            }.items() if not v
-        ])
+        log.debug(
+            "alert_smtp_not_configured",
+            missing=[
+                k
+                for k, v in {
+                    "ALERT_EMAIL_TO": recipient,
+                    "ALERT_SMTP_USER": user,
+                    "ALERT_SMTP_PASSWORD": password,
+                }.items()
+                if not v
+            ],
+        )
         return
 
     subject = f"[Licitaciones SAP] [{level.name}] {title}"

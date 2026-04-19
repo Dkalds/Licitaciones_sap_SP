@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 
 def _is_transient(exc: BaseException) -> bool:
     """Reintenta solo en errores transitorios de red y 5xx/429."""
-    if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
+    if isinstance(exc, requests.ConnectionError | requests.Timeout):
         return True
     if isinstance(exc, requests.HTTPError):
         resp = getattr(exc, "response", None)

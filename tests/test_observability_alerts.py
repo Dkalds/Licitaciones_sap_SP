@@ -97,5 +97,5 @@ def test_build_html_contains_title_and_body():
 def test_build_html_uses_level_color():
     html_warn = _build_html(AlertLevel.WARN, "t", "b", {})
     html_crit = _build_html(AlertLevel.CRITICAL, "t", "b", {})
-    assert "#e6a817" in html_warn   # color WARN
-    assert "#8b0000" in html_crit   # color CRITICAL
+    assert "#e6a817" in html_warn  # color WARN
+    assert "#8b0000" in html_crit  # color CRITICAL

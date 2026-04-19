@@ -22,7 +22,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S106", "S105"]
+"tests/*" = ["S101", "S106", "S105", "S320"]
 "api/main.py" = ["B008"]  # FastAPI Depends/Query en defaults es idiomático
 "dashboard/*" = ["S110"]
 

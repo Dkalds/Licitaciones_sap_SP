@@ -27,10 +27,7 @@ _LOOKBACK_DAYS = 30
 
 def _user_key() -> str:
     """Misma derivación que usa el dashboard (hash del DASHBOARD_PASSWORD)."""
-    seed = (
-        os.environ.get("DASHBOARD_PASSWORD", "")
-        or os.environ.get("COMPUTERNAME", "default")
-    )
+    seed = os.environ.get("DASHBOARD_PASSWORD", "") or os.environ.get("COMPUTERNAME", "default")
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
 
 
@@ -54,9 +51,7 @@ def _query_licitaciones_since(cpv_prefix: str, since_date: str) -> list[dict[str
 
 def _build_body(matches_by_entry: list[tuple[dict[str, Any], list[dict[str, Any]]]]) -> str:
     total = sum(len(lics) for _, lics in matches_by_entry)
-    lines: list[str] = [
-        f"Se han encontrado {total} licitación(es) que encajan con tu watchlist:\n"
-    ]
+    lines: list[str] = [f"Se han encontrado {total} licitación(es) que encajan con tu watchlist:\n"]
     for entry, lics in matches_by_entry:
         parts = [f"CPV: {entry['cpv_prefix']}"]
         if entry.get("keyword"):
@@ -93,12 +88,11 @@ def check_and_notify() -> int:
         return 0
 
     now_ts = datetime.utcnow().isoformat()
-    default_since = (
-        datetime.utcnow() - timedelta(days=_LOOKBACK_DAYS)
-    ).date().isoformat()
+    default_since = (datetime.utcnow() - timedelta(days=_LOOKBACK_DAYS)).date().isoformat()
 
     # Agrupar entradas por email destinatario para enviar un único correo por persona
     from collections import defaultdict
+
     by_email: dict[str, list[dict[str, Any]]] = defaultdict(list)
     entries_without_email: list[dict[str, Any]] = []
 

@@ -64,7 +64,7 @@ def render(ctx: PageContext) -> None:
             placeholder="tucorreo@ejemplo.com",
             key="wl_email",
             help="Si lo rellenas recibirás un email cada vez que aparezca "
-                 "una licitación que encaje con estos criterios.",
+            "una licitación que encaje con estos criterios.",
         )
         if st.button("Guardar", type="primary"):
             if not cpv.strip():
