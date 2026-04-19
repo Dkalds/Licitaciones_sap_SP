@@ -1,22 +1,33 @@
-"""Envío de alertas a Slack/email/console según entorno.
+"""Envío de alertas por email (SMTP) o al log estructurado.
 
-Configura con variables de entorno:
+Variables de entorno necesarias para email:
 
-- ``ALERT_SLACK_WEBHOOK_URL``: URL del webhook entrante de Slack.
-- ``ALERT_EMAIL_WEBHOOK_URL``: endpoint HTTP que recibe POST JSON con ``subject``
-  y ``body``. Útil si usas un relay SMTP/serverless (e.g. Resend, Mailgun).
-- ``ALERT_MIN_LEVEL``: ``info`` | ``warn`` | ``error`` (default ``warn``).
+- ``ALERT_EMAIL_TO``       : destinatario, p.ej. dkalitovicsd@gmail.com
+- ``ALERT_SMTP_USER``      : cuenta remitente, p.ej. dkalitovicsd@gmail.com
+- ``ALERT_SMTP_PASSWORD``  : contraseña de aplicación de Google (16 chars)
+- ``ALERT_SMTP_HOST``      : servidor SMTP  (default: smtp.gmail.com)
+- ``ALERT_SMTP_PORT``      : puerto STARTTLS (default: 587)
+- ``ALERT_MIN_LEVEL``      : ``info`` | ``warn`` | ``error`` (default: ``warn``)
 
-Si no hay webhooks configurados, las alertas se escriben al log estructurado.
+Si las variables no están definidas las alertas solo se escriben al log.
+
+Cómo obtener la contraseña de aplicación de Gmail
+--------------------------------------------------
+1. Activa la verificación en 2 pasos en tu cuenta Google.
+2. Ve a https://myaccount.google.com/apppasswords
+3. Crea una nueva contraseña para "Correo" / "Otro (nombre personalizado)".
+4. Copia los 16 caracteres y ponlos en ALERT_SMTP_PASSWORD.
 """
 
 from __future__ import annotations
 
 import os
+import smtplib
+import textwrap
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from enum import IntEnum
 from typing import Any
-
-import requests
 
 from observability.logging import get_logger
 
@@ -38,61 +49,96 @@ _LEVEL_NAMES = {
     "critical": AlertLevel.CRITICAL,
 }
 
+_LEVEL_COLORS = {
+    AlertLevel.INFO: "#36a64f",
+    AlertLevel.WARN: "#e6a817",
+    AlertLevel.ERROR: "#e04e4e",
+    AlertLevel.CRITICAL: "#8b0000",
+}
+
+_LEVEL_EMOJI = {
+    AlertLevel.INFO: "ℹ️",
+    AlertLevel.WARN: "⚠️",
+    AlertLevel.ERROR: "❌",
+    AlertLevel.CRITICAL: "🚨",
+}
+
 
 def _min_level() -> AlertLevel:
     raw = os.environ.get("ALERT_MIN_LEVEL", "warn").lower()
     return _LEVEL_NAMES.get(raw, AlertLevel.WARN)
 
 
-def _emoji(level: AlertLevel) -> str:
-    return {
-        AlertLevel.INFO: ":information_source:",
-        AlertLevel.WARN: ":warning:",
-        AlertLevel.ERROR: ":x:",
-        AlertLevel.CRITICAL: ":rotating_light:",
-    }[level]
+def _build_html(level: AlertLevel, title: str, body: str,
+                context: dict[str, Any]) -> str:
+    color = _LEVEL_COLORS[level]
+    emoji = _LEVEL_EMOJI[level]
+    ctx_rows = "".join(
+        f"<tr><td style='padding:4px 12px 4px 0;color:#555;font-weight:bold'>{k}</td>"
+        f"<td style='padding:4px 0'>{v}</td></tr>"
+        for k, v in context.items()
+    )
+    ctx_table = (
+        f"<table style='margin-top:12px;border-collapse:collapse'>{ctx_rows}</table>"
+        if ctx_rows
+        else ""
+    )
+    return textwrap.dedent(f"""\
+        <!DOCTYPE html>
+        <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="border-left:4px solid {color};padding:12px 16px;
+                      background:#fafafa;border-radius:4px">
+            <h2 style="margin:0 0 8px;color:{color}">{emoji} {title}</h2>
+            <p style="margin:0;color:#333;white-space:pre-wrap">{body}</p>
+            {ctx_table}
+          </div>
+          <p style="font-size:11px;color:#aaa;margin-top:16px">
+            Licitaciones SAP · alerta automática · nivel {level.name}
+          </p>
+        </body></html>
+    """)
 
 
-def _post_slack(
-    url: str, level: AlertLevel, title: str, body: str, context: dict[str, Any]
-) -> None:
-    payload = {
-        "text": f"{_emoji(level)} *{title}*",
-        "attachments": [
-            {
-                "color": {
-                    AlertLevel.INFO: "#36a64f",
-                    AlertLevel.WARN: "#ffb347",
-                    AlertLevel.ERROR: "#e04e4e",
-                    AlertLevel.CRITICAL: "#8b0000",
-                }[level],
-                "text": body,
-                "fields": [
-                    {"title": k, "value": str(v), "short": True} for k, v in context.items()
-                ],
-            }
-        ],
-    }
+def _send_smtp(level: AlertLevel, title: str, body: str,
+               context: dict[str, Any]) -> None:
+    """Envía el email usando SMTP con STARTTLS."""
+    to_addr = os.environ.get("ALERT_EMAIL_TO", "").strip()
+    user = os.environ.get("ALERT_SMTP_USER", "").strip()
+    password = os.environ.get("ALERT_SMTP_PASSWORD", "").strip()
+    host = os.environ.get("ALERT_SMTP_HOST", "smtp.gmail.com").strip()
+    port = int(os.environ.get("ALERT_SMTP_PORT", "587"))
+
+    if not (to_addr and user and password):
+        log.debug("alert_smtp_not_configured", missing=[
+            k for k, v in {
+                "ALERT_EMAIL_TO": to_addr,
+                "ALERT_SMTP_USER": user,
+                "ALERT_SMTP_PASSWORD": password,
+            }.items() if not v
+        ])
+        return
+
+    subject = f"[Licitaciones SAP] [{level.name}] {title}"
+    html = _build_html(level, title, body, context)
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = user
+    msg["To"] = to_addr
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
     try:
-        r = requests.post(url, json=payload, timeout=10)
-        r.raise_for_status()
-    except requests.RequestException as e:
-        log.warning("alert_slack_failed", error=str(e))
-
-
-def _post_email(
-    url: str, level: AlertLevel, title: str, body: str, context: dict[str, Any]
-) -> None:
-    payload = {
-        "subject": f"[{level.name}] {title}",
-        "body": body,
-        "context": context,
-    }
-    try:
-        r = requests.post(url, json=payload, timeout=10)
-        r.raise_for_status()
-    except requests.RequestException as e:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(user, password)
+            server.sendmail(user, [to_addr], msg.as_string())
+        log.info("alert_email_sent", to=to_addr, subject=subject)
+    except smtplib.SMTPException as e:
         log.warning("alert_email_failed", error=str(e))
+    except OSError as e:
+        log.warning("alert_email_network_error", error=str(e))
 
 
 def notify(
@@ -101,9 +147,9 @@ def notify(
     body: str = "",
     **context: Any,
 ) -> None:
-    """Envía una alerta. Seguro de llamar sin configuración (loguea).
+    """Envía una alerta. Seguro de llamar sin configuración (solo loguea).
 
-    ``level`` puede ser un enum ``AlertLevel`` o una cadena (``info``/``warn``/
+    ``level`` puede ser un enum ``AlertLevel`` o cadena (``info``/``warn``/
     ``error``/``critical``).
     """
     if isinstance(level, str):
@@ -125,10 +171,4 @@ def notify(
         **context,
     )
 
-    slack_url = os.environ.get("ALERT_SLACK_WEBHOOK_URL", "").strip()
-    email_url = os.environ.get("ALERT_EMAIL_WEBHOOK_URL", "").strip()
-
-    if slack_url:
-        _post_slack(slack_url, level, title, body, context)
-    if email_url:
-        _post_email(email_url, level, title, body, context)
+    _send_smtp(level, title, body, context)
