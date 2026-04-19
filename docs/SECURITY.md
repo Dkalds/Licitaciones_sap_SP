@@ -12,8 +12,9 @@ periódica.
 | `TURSO_AUTH_TOKEN`         | Acceso a la BD remota Turso       | 90 días  | Maintainer  | GitHub Secrets + `.env`     |
 | `TURSO_DATABASE_URL`       | URL libSQL de la BD remota        | Al migrar| Maintainer  | GitHub Secrets + `.env`     |
 | `DASHBOARD_PASSWORD`       | Login único del dashboard         | 60 días  | Maintainer  | Streamlit secrets / `.env`  |
-| `ALERT_SLACK_WEBHOOK_URL`  | Webhook entrante de Slack         | Al cambiar workspace | Maintainer | GitHub Secrets      |
-| `ALERT_EMAIL_WEBHOOK_URL`  | Endpoint relay de email           | Al cambiar proveedor | Maintainer | GitHub Secrets      |
+| `ALERT_EMAIL_TO`           | Destinatario de alertas por email | Al cambiar cuenta    | Maintainer | GitHub Secrets + `.env` |
+| `ALERT_SMTP_USER`          | Cuenta remitente Gmail            | Al cambiar cuenta    | Maintainer | GitHub Secrets + `.env` |
+| `ALERT_SMTP_PASSWORD`      | App Password de Gmail (16 chars)  | 90 días              | Maintainer | GitHub Secrets + `.env` |
 | `API_KEY`                  | Header `X-API-Key` de la API REST | 90 días  | Maintainer  | Servicio consumidor + env   |
 
 ## Procedimiento de rotación

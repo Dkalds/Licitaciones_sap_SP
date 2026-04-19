@@ -206,7 +206,7 @@ Actions** → "New repository secret".
 
 ## Próximos pasos sugeridos
 
-- Añadir alertas (email/Slack) cuando aparezca una licitación SAP
+- Añadir alertas por email cuando aparezca una licitación SAP
   por encima de cierto importe.
 - Exportación programada a Excel/CSV por correo.
 - Autenticación multi-usuario con roles si pasa a uso interno de empresa.
@@ -364,7 +364,7 @@ Lanzar manualmente: pestaña *Actions* → "Scrape PLACSP daily" → *Run workfl
 
 - Migrar SQLite → Supabase Postgres si crecéis a multi-usuario con
   escritura concurrente.
-- Añadir alertas (email/Slack) cuando aparezca una licitación SAP
+- Añadir alertas por email cuando aparezca una licitación SAP
   por encima de cierto importe.
 - Auth (Cloudflare Access / streamlit-authenticator) si pasa a uso
   interno empresa.
