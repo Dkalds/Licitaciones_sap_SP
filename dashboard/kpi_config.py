@@ -81,6 +81,11 @@ KPI_FORMULAS: dict[str, str] = {
     "calidad_fechas": "% de licitaciones con fecha de publicación válida.",
     "calidad_geo": "% de órganos con coordenadas geográficas resueltas.",
     "antiguedad_scrape": "Horas desde el último run exitoso del scraper.",
+    "score_oportunidad": (
+        "Score 0-100 que combina importe, plazo, módulos SAP detectados, "
+        "match con portfolio, mención S/4HANA, baja competencia histórica "
+        "y flags de riesgo. Pesos configurables en kpi_config.SCORING_WEIGHTS."
+    ),
 }
 
 
@@ -108,3 +113,26 @@ SAP_SERVICES_PORTFOLIO: list[str] = [
 # ── Detección S/4HANA vs ECC ────────────────────────────────────────────────
 S4HANA_KEYWORDS: list[str] = ["s/4hana", "s4hana", "s/4 hana", "rise with sap"]
 ECC_KEYWORDS: list[str] = ["ecc", "r/3", "sap ecc", "erp 6.0"]
+
+
+# ── Scoring de oportunidades ────────────────────────────────────────────────
+# Suma total = 100. Cada dimensión contribuye como máximo su peso al score.
+# Ver `stats.score_oportunidad` para la fórmula de normalización.
+SCORING_WEIGHTS: dict[str, float] = {
+    "importe": 25.0,  # Importe normalizado entre P10 y P90 del dataset
+    "plazo": 15.0,  # Ventana razonable 7-90d hasta fin_plazo
+    "modulos_sap": 20.0,  # Nº módulos detectados (cap a 5)
+    "portfolio_match": 15.0,  # Match con SAP_SERVICES_PORTFOLIO
+    "s4hana_boost": 10.0,  # Mención explícita S/4HANA
+    "competencia": 10.0,  # Baja competencia histórica en el CPV
+    "riesgo": 5.0,  # Penalización por flags de riesgo
+}
+
+
+# Umbrales del score para etiquetado visual (badge).
+SCORING_BANDS: dict[str, tuple[int, str]] = {
+    "hot": (75, "🔥 Caliente"),
+    "warm": (50, "🟡 Atractiva"),
+    "cold": (25, "🟦 Tibia"),
+    "skip": (0, "⚪ Descarte"),
+}

@@ -761,3 +761,172 @@ def risk_flags(df_lics: pd.DataFrame, df_adj: pd.DataFrame) -> pd.DataFrame:
     )
 
     return df[["id_externo", "riesgo_flags", "riesgo_score"]]
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Scoring de oportunidades
+# ────────────────────────────────────────────────────────────────────────────
+def score_oportunidad(
+    df: pd.DataFrame,
+    df_adj: pd.DataFrame | None = None,
+    weights: dict[str, float] | None = None,
+) -> pd.DataFrame:
+    """Calcula un score 0-100 por licitación combinando señales comerciales SAP.
+
+    Dimensiones (pesos configurables en `kpi_config.SCORING_WEIGHTS`):
+    - importe: normalizado entre P10 y P90 del dataset (importes mayores = más puntos).
+    - plazo: ventana ideal 7-90 días hasta fin_fin_plazo; penaliza vencidos o muy cortos.
+    - modulos_sap: nº de módulos SAP detectados (cap a 5).
+    - portfolio_match: 1 si el texto contiene keywords de SAP_SERVICES_PORTFOLIO.
+    - s4hana_boost: 1 si menciona S/4HANA explícitamente.
+    - competencia: 1 si la mediana de ofertas históricas en ese CPV es < 3.
+    - riesgo: resta proporcional al nº de flags de riesgo activos.
+
+    Args:
+        df: DataFrame de licitaciones (con titulo, descripcion, importe, cpv, fecha_fin_plazo).
+        df_adj: DataFrame de adjudicaciones para calcular competencia y riesgo (opcional).
+        weights: override de los pesos por dimensión (default: SCORING_WEIGHTS).
+
+    Returns:
+        DataFrame con columnas: id_externo, score (0-100, int), banda (str), desglose (dict).
+    """
+    from dashboard.kpi_config import (
+        S4HANA_KEYWORDS,
+        SAP_SERVICES_PORTFOLIO,
+        SCORING_BANDS,
+        SCORING_WEIGHTS,
+    )
+
+    if df.empty:
+        return pd.DataFrame(columns=["id_externo", "score", "banda", "desglose"])
+
+    w = dict(SCORING_WEIGHTS)
+    if weights:
+        w.update(weights)
+
+    out = pd.DataFrame({"id_externo": df["id_externo"].values}, index=df.index)
+    texto = _build_searchable_text(df)
+
+    # 1) Importe — escalado lineal entre P10 y P90
+    if "importe" in df.columns:
+        imp = pd.to_numeric(df["importe"], errors="coerce")
+    else:
+        imp = pd.Series(0.0, index=df.index)
+    if imp.notna().any():
+        p10 = float(imp.quantile(0.1))
+        p90 = float(imp.quantile(0.9))
+        rng = max(p90 - p10, 1.0)
+        imp_norm = ((imp.fillna(0).clip(p10, p90) - p10) / rng).clip(0, 1)
+    else:
+        imp_norm = pd.Series(0.0, index=df.index)
+    out["_imp"] = imp_norm * w["importe"]
+
+    # 2) Plazo — días hasta fin_plazo. Ideal 7-90d. Vencidos o <0 = 0. >90d = decae lineal.
+    if "fecha_fin_plazo" in df.columns:
+        hoy = pd.Timestamp.now(tz="UTC")
+        ff = pd.to_datetime(df["fecha_fin_plazo"], errors="coerce", utc=True)
+        dias = (ff - hoy).dt.days.astype("Float64")
+
+        def _plazo_score(d: float) -> float:
+            if pd.isna(d) or d < 0:
+                return 0.0
+            if d < 7:
+                return float(d) / 7.0  # rampa hasta 1 en 7 días
+            if d <= 90:
+                return 1.0
+            # Decae linealmente hasta 0 en 365 días
+            return max(0.0, 1.0 - (float(d) - 90.0) / 275.0)
+
+        plazo_norm = dias.apply(_plazo_score).fillna(0).astype(float)
+    else:
+        plazo_norm = pd.Series(0.0, index=df.index)
+    out["_plz"] = plazo_norm * w["plazo"]
+
+    # 3) Módulos SAP — nº de módulos detectados (cap a 5)
+    if "modulos" in df.columns:
+        n_mods = df["modulos"].apply(lambda x: len(x) if isinstance(x, list) else 0)
+    elif "modulos_str" in df.columns:
+        n_mods = (
+            df["modulos_str"]
+            .fillna("")
+            .apply(lambda s: len([m for m in str(s).split(",") if m.strip()]))
+        )
+    else:
+        n_mods = pd.Series(0, index=df.index)
+    out["_mod"] = (n_mods.clip(0, 5) / 5.0) * w["modulos_sap"]
+
+    # 4) Portfolio match — keywords de SAP_SERVICES_PORTFOLIO
+    kws = [k.lower() for k in SAP_SERVICES_PORTFOLIO]
+    port_match = texto.apply(lambda s: any(k in s for k in kws)).astype(float)
+    out["_port"] = port_match * w["portfolio_match"]
+
+    # 5) S/4HANA boost
+    s4_kws = [k.lower() for k in S4HANA_KEYWORDS]
+    s4_match = texto.apply(lambda s: any(k in s for k in s4_kws)).astype(float)
+    out["_s4"] = s4_match * w["s4hana_boost"]
+
+    # 6) Competencia — mediana ofertas históricas en ese CPV < 3 = más atractivo
+    if df_adj is not None and not df_adj.empty and "cpv" in df.columns:
+        cpv2 = df["cpv"].astype(str).str[:2]
+        adj_tmp = df_adj.copy()
+        if "licitacion_id" in adj_tmp.columns:
+            adj_tmp = adj_tmp.merge(
+                df[["id_externo", "cpv"]].rename(columns={"id_externo": "licitacion_id"}),
+                on="licitacion_id",
+                how="left",
+            )
+            if "cpv" in adj_tmp.columns:
+                adj_tmp["_cpv2"] = adj_tmp["cpv"].astype(str).str[:2]
+                med_ofertas = adj_tmp.groupby("_cpv2")["n_ofertas_recibidas"].median().to_dict()
+                comp_score = cpv2.map(lambda c: 1.0 if med_ofertas.get(c, 99) < 3 else 0.0)
+            else:
+                comp_score = pd.Series(0.0, index=df.index)
+        else:
+            comp_score = pd.Series(0.0, index=df.index)
+    else:
+        comp_score = pd.Series(0.0, index=df.index)
+    out["_comp"] = comp_score.astype(float) * w["competencia"]
+
+    # 7) Riesgo — resta proporcional al nº de flags (0, 1, 2, 3, 4)
+    if df_adj is not None and not df_adj.empty:
+        try:
+            rf = risk_flags(df, df_adj)
+            rf_map = rf.set_index("id_externo")["riesgo_score"].to_dict()
+            riesgo_n = df["id_externo"].map(lambda i: rf_map.get(i, 0)).astype(float)
+            # 0 flags = +1 * peso, 4 flags = -1 * peso (mapeo lineal)
+            riesgo_norm = 1.0 - (riesgo_n / 2.0).clip(0, 1) * 2.0  # [1, -1]
+        except Exception:
+            riesgo_norm = pd.Series(1.0, index=df.index)
+    else:
+        riesgo_norm = pd.Series(1.0, index=df.index)
+    out["_risk"] = riesgo_norm * w["riesgo"]
+
+    # Score total (clamp 0-100)
+    score_cols = ["_imp", "_plz", "_mod", "_port", "_s4", "_comp", "_risk"]
+    out["score_raw"] = out[score_cols].sum(axis=1).clip(0, 100)
+    out["score"] = out["score_raw"].round(0).astype(int)
+
+    # Banda visual
+    def _banda(s: int) -> str:
+        for _key, (threshold, label) in SCORING_BANDS.items():
+            if s >= threshold:
+                return label
+        return "⚪ Descarte"
+
+    out["banda"] = out["score"].apply(_banda)
+
+    # Desglose por dimensión (para tooltips/exports)
+    def _desglose(row: pd.Series) -> dict[str, int]:
+        return {
+            "importe": round(row["_imp"]),
+            "plazo": round(row["_plz"]),
+            "modulos_sap": round(row["_mod"]),
+            "portfolio_match": round(row["_port"]),
+            "s4hana_boost": round(row["_s4"]),
+            "competencia": round(row["_comp"]),
+            "riesgo": round(row["_risk"]),
+        }
+
+    out["desglose"] = out.apply(_desglose, axis=1)
+
+    return out[["id_externo", "score", "banda", "desglose"]].reset_index(drop=True)

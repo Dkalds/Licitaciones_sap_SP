@@ -28,6 +28,7 @@ from dashboard.stats import (
     portfolio_match,
     ratio_relicitacion,
     risk_flags,
+    score_oportunidad,
     tasa_anulacion,
     tasa_conversion_organo,
     ticket_medio_por_plataforma,
@@ -926,3 +927,127 @@ class TestCalidadDato:
         assert out["pct_importe"] == 75.0
         assert out["pct_fecha_pub"] == 100.0
         assert out["pct_titulo"] == 50.0
+
+
+class TestScoreOportunidad:
+    """Tests para score_oportunidad — suma ponderada 0-100."""
+
+    def _df_scoring(self) -> pd.DataFrame:
+        now = pd.Timestamp.utcnow()
+        return pd.DataFrame(
+            {
+                "id_externo": ["lic-1", "lic-2", "lic-3"],
+                "titulo": [
+                    "Implementación S/4HANA para ERP corporativo",
+                    "Mantenimiento FI/CO sistema existente",
+                    "Adquisición de material de oficina",
+                ],
+                "descripcion": [
+                    "migración e integración completa",
+                    "soporte anual a módulos financieros",
+                    "folios, bolígrafos y grapadoras",
+                ],
+                "importe": [2_000_000.0, 500_000.0, 10_000.0],
+                "fecha_fin_plazo": [
+                    now + pd.Timedelta(days=30),
+                    now + pd.Timedelta(days=15),
+                    now - pd.Timedelta(days=5),  # vencida
+                ],
+                "cpv": ["72200000", "72200000", "30100000"],
+                "modulos": [["FI", "CO", "MM", "SD"], ["FI", "CO"], []],
+                "modulos_str": ["FI, CO, MM, SD", "FI, CO", ""],
+            }
+        )
+
+    def test_empty_df(self):
+        out = score_oportunidad(pd.DataFrame())
+        assert out.empty
+        assert set(out.columns) == {"id_externo", "score", "banda", "desglose"}
+
+    def test_returns_expected_columns(self):
+        df = self._df_scoring()
+        out = score_oportunidad(df)
+        assert list(out.columns) == ["id_externo", "score", "banda", "desglose"]
+        assert len(out) == 3
+        assert out["score"].dtype.kind in "iu"
+
+    def test_scores_in_range_0_100(self):
+        df = self._df_scoring()
+        out = score_oportunidad(df)
+        assert (out["score"] >= 0).all()
+        assert (out["score"] <= 100).all()
+
+    def test_sap_project_scores_higher_than_office_supplies(self):
+        """Una licitación SAP grande debe puntuar más que material de oficina."""
+        df = self._df_scoring()
+        out = score_oportunidad(df).set_index("id_externo")
+        assert out.loc["lic-1", "score"] > out.loc["lic-3", "score"]
+        # lic-1 tiene S/4HANA + 4 módulos + importe alto → debe ser caliente/atractiva
+        assert out.loc["lic-1", "score"] >= 50
+
+    def test_desglose_sums_approximately_to_score(self):
+        """Los valores del desglose deben sumar (±2 por redondeos) al score."""
+        df = self._df_scoring()
+        out = score_oportunidad(df)
+        for _, row in out.iterrows():
+            suma = sum(row["desglose"].values())
+            assert abs(suma - row["score"]) <= 2, f"desglose {suma} vs score {row['score']}"
+
+    def test_banda_assigned_from_score(self):
+        df = self._df_scoring()
+        out = score_oportunidad(df)
+        for _, row in out.iterrows():
+            s = row["score"]
+            banda = row["banda"]
+            if s >= 75:
+                assert "Caliente" in banda
+            elif s >= 50:
+                assert "Atractiva" in banda
+            elif s >= 25:
+                assert "Tibia" in banda
+            else:
+                assert "Descarte" in banda
+
+    def test_custom_weights_override(self):
+        """Si se pasan pesos custom, deben aplicarse."""
+        df = self._df_scoring()
+        # Zero-out todo excepto importe → score proporcional sólo a importe
+        custom = {
+            "importe": 100.0,
+            "plazo": 0.0,
+            "modulos_sap": 0.0,
+            "portfolio_match": 0.0,
+            "s4hana_boost": 0.0,
+            "competencia": 0.0,
+            "riesgo": 0.0,
+        }
+        out = score_oportunidad(df, weights=custom).set_index("id_externo")
+        # El importe más alto debe tener el score más alto
+        assert out.loc["lic-1", "score"] >= out.loc["lic-2", "score"]
+        assert out.loc["lic-2", "score"] >= out.loc["lic-3", "score"]
+
+    def test_expired_plazo_gets_zero_plazo_points(self):
+        """Una licitación con fecha_fin_plazo en el pasado no suma puntos en plazo."""
+        df = self._df_scoring()
+        out = score_oportunidad(df).set_index("id_externo")
+        # lic-3 tiene plazo vencido → desglose["plazo"] == 0
+        assert out.loc["lic-3", "desglose"]["plazo"] == 0
+
+    def test_with_adjudicaciones_adds_competencia_signal(self):
+        """Adjudicaciones históricas con baja mediana de ofertas suman en 'competencia'."""
+        df = self._df_scoring()
+        # adj.licitacion_id debe matchear df.id_externo para resolver cpv via merge
+        adj = pd.DataFrame(
+            {
+                "licitacion_id": ["lic-1", "lic-2"],
+                "n_ofertas_recibidas": [1, 2],  # mediana=1.5 < 3 → competencia baja en CPV 72
+                "empresa_key": ["A", "B"],
+                "nombre": ["Empresa A", "Empresa B"],
+                "importe_adjudicado": [100000.0, 200000.0],
+            }
+        )
+        out = score_oportunidad(df, adj).set_index("id_externo")
+        # lic-1 y lic-2 (CPV 72) ganan punto por baja competencia
+        assert out.loc["lic-1", "desglose"]["competencia"] > 0
+        # lic-3 (CPV 30) no está en el mapa de CPVs con histórico → 0
+        assert out.loc["lic-3", "desglose"]["competencia"] == 0
