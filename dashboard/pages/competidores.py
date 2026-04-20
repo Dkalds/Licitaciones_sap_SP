@@ -8,6 +8,7 @@ from collections import Counter
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.components.cards import top_card
@@ -406,6 +407,131 @@ def render(ctx: PageContext) -> None:
             st.caption(
                 "Arriba-derecha: contratos grandes + baja agresiva. "
                 "Arriba-izquierda rojo: clientes cautivos."
+            )
+
+    # ── Comparador side-by-side ──────────────────────────────────
+    st.divider()
+    st.subheader("Comparador de empresas")
+    if len(sel_empresas) < 2:
+        st.info(
+            "Selecciona **2 o más empresas** en el selector de arriba para activar el comparador."
+        )
+    else:
+        # Métricas enriquecidas para las empresas seleccionadas
+        comp_raw = sub_ci.copy()
+        comp_raw["es_mono"] = (comp_raw["n_ofertas_recibidas"] == 1).fillna(False).astype(int)
+
+        comp_metr = (
+            comp_raw.groupby("empresa_key", dropna=True)
+            .agg(
+                empresa=("nombre_canonico", "first"),
+                contratos=("id", "count"),
+                volumen=("importe_adjudicado", "sum"),
+                ticket_medio=("importe_adjudicado", "mean"),
+                baja_media=("baja_pct", "mean"),
+                pct_monopolio=("es_mono", lambda s: float(s.mean()) * 100),
+                organos=("organo_contratacion", "nunique"),
+            )
+            .reset_index()
+        )
+        comp_metr["cuota_pct"] = comp_metr["volumen"] / total_mercado * 100 if total_mercado else 0
+        dep_map = {
+            k: float(
+                comp_raw[comp_raw["empresa_key"] == k]["organo_contratacion"]
+                .value_counts(normalize=True)
+                .iloc[0]
+                * 100
+            )
+            if not comp_raw[comp_raw["empresa_key"] == k].empty
+            else 0.0
+            for k in comp_metr["empresa_key"]
+        }
+        comp_metr["dep_cliente"] = comp_metr["empresa_key"].map(dep_map).fillna(0)
+        comp_metr["diversificacion"] = 100 - comp_metr["dep_cliente"]
+        comp_metr = comp_metr.drop(columns=["empresa_key"])
+
+        # ── Tabla comparativa ────────────────────────────────────
+        _TABLA_METRICAS = [
+            ("Volumen total", "volumen", lambda v: fmt_eur(v)),
+            ("Cuota de mercado", "cuota_pct", lambda v: f"{v:.1f}%"),
+            ("Nº contratos", "contratos", lambda v: f"{int(v):,}"),
+            ("Ticket medio", "ticket_medio", lambda v: fmt_eur(v)),
+            ("Baja media", "baja_media", lambda v: f"{v:.1f}%" if pd.notna(v) else "—"),
+            ("Dependencia top-1 cliente", "dep_cliente", lambda v: f"{v:.1f}%"),
+            ("Órganos distintos", "organos", lambda v: f"{int(v)}"),
+            ("% Ofertas en monopolio", "pct_monopolio", lambda v: f"{v:.1f}%"),
+        ]
+        tabla_rows = []
+        for label, col, fmt_fn in _TABLA_METRICAS:
+            row_d: dict = {"Métrica": label}
+            for _, emp_row in comp_metr.iterrows():
+                val = emp_row.get(col)
+                emp_name = str(emp_row["empresa"])[:22]
+                row_d[emp_name] = fmt_fn(val) if pd.notna(val) else "—"
+            tabla_rows.append(row_d)
+
+        cCmp1, cCmp2 = st.columns([1, 1])
+        with cCmp1:
+            st.markdown("**Métricas comparativas**")
+            st.dataframe(
+                pd.DataFrame(tabla_rows),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+        # ── Radar chart ──────────────────────────────────────────
+        with cCmp2:
+            st.markdown("**Perfil competitivo (normalizado)**")
+            _RADAR_COLS = {
+                "cuota_pct": "Cuota %",
+                "diversificacion": "Diversificación",
+                "baja_media": "Agresividad precio",
+                "pct_monopolio": "% Cautivo",
+                "organos": "Amplitud geogr.",
+                "contratos": "Actividad",
+            }
+            radar_df = comp_metr[
+                ["empresa"] + [c for c in _RADAR_COLS if c in comp_metr.columns]
+            ].copy()
+            for col in _RADAR_COLS:
+                if col not in radar_df.columns:
+                    radar_df[col] = 0.0
+                radar_df[col] = radar_df[col].fillna(0.0)
+                col_min, col_max = radar_df[col].min(), radar_df[col].max()
+                if col_max > col_min:
+                    radar_df[col] = (radar_df[col] - col_min) / (col_max - col_min)
+                else:
+                    radar_df[col] = 0.5
+
+            categories = list(_RADAR_COLS.values())
+            radar_fig = go.Figure()
+            colors = ctx.color_sequence
+            for idx, (_, r_row) in enumerate(radar_df.iterrows()):
+                vals = [float(r_row.get(col, 0)) for col in _RADAR_COLS]
+                radar_fig.add_trace(
+                    go.Scatterpolar(
+                        r=[*vals, vals[0]],
+                        theta=[*categories, categories[0]],
+                        fill="toself",
+                        name=str(r_row["empresa"])[:25],
+                        opacity=0.65,
+                        line=dict(color=colors[idx % len(colors)]),
+                    )
+                )
+            radar_fig.update_layout(
+                template=ctx.plotly_template,
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 1], showticklabels=False),
+                ),
+                showlegend=True,
+                height=400,
+                margin=dict(t=30, b=30, l=30, r=30),
+                legend=dict(orientation="h", y=-0.15),
+            )
+            st.plotly_chart(radar_fig, use_container_width=True)
+            st.caption(
+                "Cada dimensión está normalizada entre 0 y 1 dentro del grupo seleccionado. "
+                "Mayor área = mejor posición relativa en ese grupo."
             )
 
     # ── Buscador de empresas ─────────────────────────────────────

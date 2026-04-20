@@ -6,7 +6,9 @@ import streamlit as st
 
 from dashboard.components.states import guarded_render
 from dashboard.components.tables import data_table
+from dashboard.data_loader import load_adjudicaciones
 from dashboard.pages._base import PageContext
+from dashboard.stats import risk_flags
 from dashboard.utils.export import to_excel_bytes
 from dashboard.utils.format import fmt_eur
 
@@ -14,6 +16,21 @@ from dashboard.utils.format import fmt_eur
 @guarded_render
 def render(ctx: PageContext) -> None:
     df = ctx.df
+
+    # ── Flags de riesgo ───────────────────────────────────────────────────────
+    # Calculados sobre df_full para tener contexto histórico completo (CPV P10, monopolio…)
+    try:
+        adj_rf = load_adjudicaciones()
+        rf = risk_flags(ctx.df_full, adj_rf)
+        df = df.merge(
+            rf[["id_externo", "riesgo_flags", "riesgo_score"]], on="id_externo", how="left"
+        )
+        df["riesgo_flags"] = df["riesgo_flags"].fillna("")
+        df["riesgo_score"] = df["riesgo_score"].fillna(0).astype(int)
+    except Exception:
+        df = df.copy()
+        df["riesgo_flags"] = ""
+        df["riesgo_score"] = 0
 
     st.subheader(f"Detalle de licitaciones ({len(df)})")
     st.caption(
@@ -48,6 +65,7 @@ def render(ctx: PageContext) -> None:
         "tipo_proyecto",
         "modulos_str",
         "cpv_desc",
+        "riesgo_flags",
         "url",
     ]
     cols = [c for c in cols if c in df.columns]
@@ -66,6 +84,7 @@ def render(ctx: PageContext) -> None:
             "tipo_proyecto": st.column_config.TextColumn("Tipo"),
             "modulos_str": st.column_config.TextColumn("Módulos"),
             "cpv_desc": st.column_config.TextColumn("CPV"),
+            "riesgo_flags": st.column_config.TextColumn("⚠️ Riesgo", width="medium"),
             "url": st.column_config.LinkColumn("Enlace", display_text="🔗"),
         },
     )
@@ -90,6 +109,11 @@ def render(ctx: PageContext) -> None:
                 st.write(row.get("descripcion") or "—")
             with cE2:
                 st.metric("Importe", fmt_eur(row["importe"]))
+                flags_txt = row.get("riesgo_flags", "")
+                if flags_txt:
+                    st.markdown(f"**⚠️ Alertas:** {flags_txt}")
+                else:
+                    st.markdown("**✅ Sin alertas de riesgo**")
                 if row.get("url"):
                     st.link_button(
                         "📄 Ver licitación oficial", row["url"], use_container_width=True

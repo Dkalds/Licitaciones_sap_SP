@@ -176,3 +176,105 @@ def pct_oferta_unica(adj_df: pd.DataFrame) -> float:
 def media_movil(series: pd.Series, window: int = 3) -> pd.Series:
     """Media móvil simple."""
     return series.rolling(window=window, min_periods=1).mean()
+
+
+def risk_flags(df_lics: pd.DataFrame, df_adj: pd.DataFrame) -> pd.DataFrame:
+    """Calcula flags de riesgo para cada licitación (vectorizado).
+
+    Flags posibles:
+    - "🔴 Monopolio"        — órgano adjudica ≥80% al mismo proveedor en ese CPV (2 dígitos)
+    - "🟡 Baja competencia" — mediana de ofertas recibidas < 2 en ese CPV
+    - "🟠 Alta anulación"   — tasa de anulación del órgano > 25%
+    - "🔵 Presupuesto bajo" — importe < percentil 10 del CPV
+
+    Returns:
+        DataFrame con columnas: id_externo, riesgo_flags (str), riesgo_score (int).
+    """
+    if df_lics.empty:
+        return pd.DataFrame(columns=["id_externo", "riesgo_flags", "riesgo_score"])
+
+    df = df_lics.copy()
+    df["_cpv2"] = df["cpv"].astype(str).str[:2]
+
+    # ── Flag: Alta anulación por órgano ─────────────────────────────────────
+    organ_stats = (
+        df.groupby("organo_contratacion")
+        .agg(total=("id_externo", "count"), anuladas=("estado", lambda s: (s == "ANUL").sum()))
+        .reset_index()
+    )
+    organ_stats["_tasa_anulacion"] = organ_stats["anuladas"] / organ_stats["total"] * 100
+    df = df.merge(
+        organ_stats[["organo_contratacion", "_tasa_anulacion"]],
+        on="organo_contratacion",
+        how="left",
+    )
+    df["_alta_anulacion"] = df["_tasa_anulacion"].fillna(0) > 25
+
+    # ── Flag: Presupuesto bajo (< P10 del CPV a 2 dígitos) ──────────────────
+    p10_cpv = df.groupby("_cpv2")["importe"].quantile(0.1).rename("_p10_importe").reset_index()
+    df = df.merge(p10_cpv, on="_cpv2", how="left")
+    df["_presupuesto_bajo"] = (
+        df["importe"].notna() & df["_p10_importe"].notna() & (df["importe"] < df["_p10_importe"])
+    )
+
+    # ── Flags basados en adjudicaciones históricas ───────────────────────────
+    if not df_adj.empty and "licitacion_id" in df_adj.columns:
+        # Seleccionar solo las columnas necesarias para evitar colisiones en merge
+        _adj_cols = ["licitacion_id", "empresa_key", "n_ofertas_recibidas"]
+        adj_slim = df_adj[[c for c in _adj_cols if c in df_adj.columns]].copy()
+        adj = adj_slim.merge(
+            df[["id_externo", "_cpv2", "organo_contratacion"]],
+            left_on="licitacion_id",
+            right_on="id_externo",
+            how="left",
+        ).dropna(subset=["organo_contratacion", "_cpv2"])
+
+        # Cuota máxima por (órgano, cpv2) — monopolio si ≥ 80%
+        emp_counts = (
+            adj.groupby(["organo_contratacion", "_cpv2", "empresa_key"])
+            .size()
+            .rename("_emp_n")
+            .reset_index()
+        )
+        grp_totals = (
+            adj.groupby(["organo_contratacion", "_cpv2"]).size().rename("_grp_n").reset_index()
+        )
+        cuota_df = emp_counts.merge(grp_totals, on=["organo_contratacion", "_cpv2"])
+        cuota_df["_cuota"] = cuota_df["_emp_n"] / cuota_df["_grp_n"]
+        max_cuota = (
+            cuota_df.groupby(["organo_contratacion", "_cpv2"])["_cuota"]
+            .max()
+            .rename("_max_cuota")
+            .reset_index()
+        )
+        df = df.merge(max_cuota, on=["organo_contratacion", "_cpv2"], how="left")
+        df["_monopolio"] = df["_max_cuota"].fillna(0) >= 0.80
+
+        # Mediana de ofertas por cpv2 — baja competencia si < 2
+        med_ofertas = (
+            adj.groupby("_cpv2")["n_ofertas_recibidas"]
+            .median()
+            .rename("_med_ofertas")
+            .reset_index()
+        )
+        df = df.merge(med_ofertas, on="_cpv2", how="left")
+        df["_baja_competencia"] = df["_med_ofertas"].fillna(99) < 2
+    else:
+        df["_monopolio"] = False
+        df["_baja_competencia"] = False
+
+    # ── Construir cadena de flags ────────────────────────────────────────────
+    flag_map = {
+        "_monopolio": "🔴 Monopolio",
+        "_baja_competencia": "🟡 Baja competencia",
+        "_alta_anulacion": "🟠 Alta anulación",
+        "_presupuesto_bajo": "🔵 Presupuesto bajo",
+    }
+    flag_cols = list(flag_map.keys())
+    df["riesgo_score"] = df[flag_cols].sum(axis=1).astype(int)
+    df["riesgo_flags"] = df[flag_cols].apply(
+        lambda row: " · ".join(label for col, label in flag_map.items() if row[col]),
+        axis=1,
+    )
+
+    return df[["id_externo", "riesgo_flags", "riesgo_score"]]
