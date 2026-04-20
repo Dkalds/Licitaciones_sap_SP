@@ -459,9 +459,12 @@ def ticket_medio_por_plataforma(df: pd.DataFrame) -> dict:
     if df.empty:
         return result
 
-    text = (
-        df["titulo"].fillna("").astype(str) + " " + df.get("descripcion", "").fillna("").astype(str)
-    ).str.lower()
+    desc = (
+        df["descripcion"].fillna("").astype(str)
+        if "descripcion" in df.columns
+        else pd.Series([""] * len(df), index=df.index)
+    )
+    text = (df["titulo"].fillna("").astype(str) + " " + desc).str.lower()
 
     s4_mask = text.apply(lambda t: any(k in t for k in S4HANA_KEYWORDS))
     ecc_mask = text.apply(lambda t: any(k in t for k in ECC_KEYWORDS))
@@ -492,9 +495,12 @@ def portfolio_match(df: pd.DataFrame, keywords: list[str] | None = None) -> floa
         keywords = SAP_SERVICES_PORTFOLIO
     if not keywords:
         return 0.0
-    text = (
-        df["titulo"].fillna("").astype(str) + " " + df.get("descripcion", "").fillna("").astype(str)
-    ).str.lower()
+    desc = (
+        df["descripcion"].fillna("").astype(str)
+        if "descripcion" in df.columns
+        else pd.Series([""] * len(df), index=df.index)
+    )
+    text = (df["titulo"].fillna("").astype(str) + " " + desc).str.lower()
     kws = [k.lower() for k in keywords]
     mask = text.apply(lambda t: any(k in t for k in kws))
     return float(mask.sum() / len(df) * 100)
