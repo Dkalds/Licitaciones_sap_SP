@@ -203,16 +203,15 @@ def risk_flags(df_lics: pd.DataFrame, df_adj: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
     )
     organ_stats["_tasa_anulacion"] = organ_stats["anuladas"] / organ_stats["total"] * 100
-    df = df.merge(organ_stats[["organo_contratacion", "_tasa_anulacion"]], on="organo_contratacion", how="left")
+    df = df.merge(
+        organ_stats[["organo_contratacion", "_tasa_anulacion"]],
+        on="organo_contratacion",
+        how="left",
+    )
     df["_alta_anulacion"] = df["_tasa_anulacion"].fillna(0) > 25
 
     # ── Flag: Presupuesto bajo (< P10 del CPV a 2 dígitos) ──────────────────
-    p10_cpv = (
-        df.groupby("_cpv2")["importe"]
-        .quantile(0.1)
-        .rename("_p10_importe")
-        .reset_index()
-    )
+    p10_cpv = df.groupby("_cpv2")["importe"].quantile(0.1).rename("_p10_importe").reset_index()
     df = df.merge(p10_cpv, on="_cpv2", how="left")
     df["_presupuesto_bajo"] = (
         df["importe"].notna() & df["_p10_importe"].notna() & (df["importe"] < df["_p10_importe"])
@@ -238,10 +237,7 @@ def risk_flags(df_lics: pd.DataFrame, df_adj: pd.DataFrame) -> pd.DataFrame:
             .reset_index()
         )
         grp_totals = (
-            adj.groupby(["organo_contratacion", "_cpv2"])
-            .size()
-            .rename("_grp_n")
-            .reset_index()
+            adj.groupby(["organo_contratacion", "_cpv2"]).size().rename("_grp_n").reset_index()
         )
         cuota_df = emp_counts.merge(grp_totals, on=["organo_contratacion", "_cpv2"])
         cuota_df["_cuota"] = cuota_df["_emp_n"] / cuota_df["_grp_n"]

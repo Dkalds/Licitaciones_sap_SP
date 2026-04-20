@@ -445,7 +445,7 @@ def _adj_df() -> pd.DataFrame:
         {
             "licitacion_id": ["id-1", "id-2", "id-3"],
             "empresa_key": ["emp_A", "emp_A", "emp_B"],  # emp_A gana 2/2 en OrgA→monopolio
-            "n_ofertas_recibidas": [1.0, 1.0, 2.0],     # mediana cpv72 = 1 → baja competencia
+            "n_ofertas_recibidas": [1.0, 1.0, 2.0],  # mediana cpv72 = 1 → baja competencia
             "organo_contratacion": ["OrgA", "OrgA", "OrgB"],
         }
     )

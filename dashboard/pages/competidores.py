@@ -413,7 +413,9 @@ def render(ctx: PageContext) -> None:
     st.divider()
     st.subheader("Comparador de empresas")
     if len(sel_empresas) < 2:
-        st.info("Selecciona **2 o más empresas** en el selector de arriba para activar el comparador.")
+        st.info(
+            "Selecciona **2 o más empresas** en el selector de arriba para activar el comparador."
+        )
     else:
         # Métricas enriquecidas para las empresas seleccionadas
         comp_raw = sub_ci.copy()
@@ -432,9 +434,7 @@ def render(ctx: PageContext) -> None:
             )
             .reset_index()
         )
-        comp_metr["cuota_pct"] = (
-            comp_metr["volumen"] / total_mercado * 100 if total_mercado else 0
-        )
+        comp_metr["cuota_pct"] = comp_metr["volumen"] / total_mercado * 100 if total_mercado else 0
         dep_map = {
             k: float(
                 comp_raw[comp_raw["empresa_key"] == k]["organo_contratacion"]
@@ -490,7 +490,9 @@ def render(ctx: PageContext) -> None:
                 "organos": "Amplitud geogr.",
                 "contratos": "Actividad",
             }
-            radar_df = comp_metr[["empresa"] + [c for c in _RADAR_COLS if c in comp_metr.columns]].copy()
+            radar_df = comp_metr[
+                ["empresa"] + [c for c in _RADAR_COLS if c in comp_metr.columns]
+            ].copy()
             for col in _RADAR_COLS:
                 if col not in radar_df.columns:
                     radar_df[col] = 0.0

@@ -22,7 +22,9 @@ def render(ctx: PageContext) -> None:
     try:
         adj_rf = load_adjudicaciones()
         rf = risk_flags(ctx.df_full, adj_rf)
-        df = df.merge(rf[["id_externo", "riesgo_flags", "riesgo_score"]], on="id_externo", how="left")
+        df = df.merge(
+            rf[["id_externo", "riesgo_flags", "riesgo_score"]], on="id_externo", how="left"
+        )
         df["riesgo_flags"] = df["riesgo_flags"].fillna("")
         df["riesgo_score"] = df["riesgo_score"].fillna(0).astype(int)
     except Exception:
