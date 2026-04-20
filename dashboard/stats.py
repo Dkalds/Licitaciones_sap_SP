@@ -300,6 +300,348 @@ def ratio_relicitacion(df_pipeline: pd.DataFrame, df_adj: pd.DataFrame) -> float
     return float(ids_pipeline.isin(ids_con_adj).sum() / len(ids_pipeline) * 100)
 
 
+def kpi_sparkline_series(
+    df: pd.DataFrame,
+    metric: str = "count",
+    freq: str = "W",
+    periods: int = 12,
+) -> list[float]:
+    """Serie histórica agregada para usar como sparkline inline.
+
+    Args:
+        df: DataFrame con columna `fecha_publicacion` y (si metric='sum'/'mean') `importe`.
+        metric: "count" | "sum" | "mean" — agregación a aplicar.
+        freq: frecuencia pandas ("W"=semana, "M"=mes, "D"=día).
+        periods: número de periodos a devolver (últimos N).
+
+    Returns:
+        Lista de floats listos para pasar a `kpi_card(sparkline=...)`.
+    """
+    if df.empty or "fecha_publicacion" not in df.columns:
+        return []
+    s = df.dropna(subset=["fecha_publicacion"]).copy()
+    if s.empty:
+        return []
+    s["fecha_publicacion"] = pd.to_datetime(s["fecha_publicacion"], errors="coerce", utc=True)
+    if hasattr(s["fecha_publicacion"].dt, "tz"):
+        s["fecha_publicacion"] = s["fecha_publicacion"].dt.tz_localize(None)
+
+    s = s.set_index("fecha_publicacion").sort_index()
+    if metric == "count":
+        agg = s.resample(freq).size()
+    elif metric == "sum" and "importe" in s.columns:
+        agg = s["importe"].resample(freq).sum(min_count=1).fillna(0)
+    elif metric == "mean" and "importe" in s.columns:
+        agg = s["importe"].resample(freq).mean().fillna(0)
+    else:
+        return []
+
+    return [float(v) for v in agg.tail(periods).tolist()]
+
+
+def is_anomaly(current: float, history: list[float] | pd.Series, sigma: float = 2.0) -> bool:
+    """Detecta si `current` se desvía más de `sigma` desviaciones de la media histórica.
+
+    Requiere al menos 3 puntos históricos válidos. Si la desviación típica es 0
+    (historia constante), usa una tolerancia relativa del 10% sobre la media.
+    """
+    if history is None:
+        return False
+    h = [float(v) for v in list(history) if v is not None and v == v]
+    if len(h) < 3:
+        return False
+    ser = pd.Series(h)
+    mu = float(ser.mean())
+    sd = float(ser.std(ddof=0))
+    if sd == 0:
+        # Tolerancia relativa cuando no hay variabilidad histórica
+        return mu > 0 and abs(current - mu) > abs(mu) * 0.10
+    z = abs(current - mu) / sd
+    return z >= sigma
+
+
+# ── KPIs comerciales SAP específicos ────────────────────────────────────────
+
+
+def importe_medio_por_modulo(df: pd.DataFrame) -> pd.DataFrame:
+    """Importe medio y nº de licitaciones por módulo SAP detectado.
+
+    Requiere que `df.modulos` sea una lista/iterable (ya lo es tras data_loader).
+    """
+    if df.empty or "modulos" not in df.columns:
+        return pd.DataFrame(columns=["modulo", "n", "importe_medio", "importe_total"])
+    mod_df = df.explode("modulos").dropna(subset=["modulos"])
+    if mod_df.empty:
+        return pd.DataFrame(columns=["modulo", "n", "importe_medio", "importe_total"])
+    g = (
+        mod_df.groupby("modulos")
+        .agg(
+            n=("id_externo", "count"),
+            importe_medio=("importe", "mean"),
+            importe_total=("importe", "sum"),
+        )
+        .reset_index()
+        .rename(columns={"modulos": "modulo"})
+        .sort_values("importe_medio", ascending=False)
+    )
+    return g
+
+
+def top_modulo_yoy(df: pd.DataFrame) -> dict | None:
+    """Módulo SAP con mayor crecimiento YoY en nº de licitaciones.
+
+    Returns: {modulo, crecimiento_pct, n_act, n_prev} o None si no hay datos suficientes.
+    """
+    if df.empty or "modulos" not in df.columns or "fecha_publicacion" not in df.columns:
+        return None
+    hoy = pd.Timestamp.utcnow()
+    d = df.copy()
+    d["fecha_publicacion"] = pd.to_datetime(d["fecha_publicacion"], errors="coerce", utc=True)
+    actual = d[d["fecha_publicacion"] >= (hoy - pd.Timedelta(days=365))]
+    previo = d[
+        (d["fecha_publicacion"] < (hoy - pd.Timedelta(days=365)))
+        & (d["fecha_publicacion"] >= (hoy - pd.Timedelta(days=730)))
+    ]
+
+    act_counts = actual.explode("modulos").dropna(subset=["modulos"]).groupby("modulos").size()
+    prev_counts = previo.explode("modulos").dropna(subset=["modulos"]).groupby("modulos").size()
+
+    if act_counts.empty:
+        return None
+
+    # Solo módulos con al menos 3 en el periodo actual, para evitar ruido
+    act_counts = act_counts[act_counts >= 3]
+    if act_counts.empty:
+        return None
+
+    growth = {}
+    for mod in act_counts.index:
+        n_act = int(act_counts.get(mod, 0))
+        n_prev = int(prev_counts.get(mod, 0))
+        if n_prev == 0:
+            # Módulo totalmente nuevo: crecimiento "infinito" representado como 999
+            growth[mod] = (999.0, n_act, n_prev)
+        else:
+            pct = (n_act - n_prev) / n_prev * 100
+            growth[mod] = (pct, n_act, n_prev)
+
+    if not growth:
+        return None
+    top_mod = max(growth.items(), key=lambda kv: kv[1][0])
+    mod_name, (pct, n_act, n_prev) = top_mod
+    return {
+        "modulo": str(mod_name),
+        "crecimiento_pct": float(pct),
+        "n_act": int(n_act),
+        "n_prev": int(n_prev),
+    }
+
+
+def pct_multi_modulo(df: pd.DataFrame) -> float:
+    """% de licitaciones con ≥2 módulos SAP detectados (proyectos integrales)."""
+    if df.empty or "modulos" not in df.columns:
+        return 0.0
+    con_modulos = df[df["modulos"].apply(lambda m: isinstance(m, list) and len(m) > 0)]
+    if con_modulos.empty:
+        return 0.0
+    multi = con_modulos[con_modulos["modulos"].apply(lambda m: len(m) >= 2)]
+    return float(len(multi) / len(con_modulos) * 100)
+
+
+def ticket_medio_por_plataforma(df: pd.DataFrame) -> dict:
+    """Importe medio de licitaciones que mencionan S/4HANA vs ECC.
+
+    Returns: {s4hana: {n, ticket_medio}, ecc: {n, ticket_medio}}.
+    """
+    from dashboard.kpi_config import ECC_KEYWORDS, S4HANA_KEYWORDS
+
+    result = {"s4hana": {"n": 0, "ticket_medio": 0.0}, "ecc": {"n": 0, "ticket_medio": 0.0}}
+    if df.empty:
+        return result
+
+    text = (
+        df["titulo"].fillna("").astype(str) + " " + df.get("descripcion", "").fillna("").astype(str)
+    ).str.lower()
+
+    s4_mask = text.apply(lambda t: any(k in t for k in S4HANA_KEYWORDS))
+    ecc_mask = text.apply(lambda t: any(k in t for k in ECC_KEYWORDS))
+
+    s4_df = df[s4_mask].dropna(subset=["importe"])
+    ecc_df = df[ecc_mask].dropna(subset=["importe"])
+
+    if not s4_df.empty:
+        result["s4hana"] = {
+            "n": len(s4_df),
+            "ticket_medio": float(s4_df["importe"].mean()),
+        }
+    if not ecc_df.empty:
+        result["ecc"] = {
+            "n": len(ecc_df),
+            "ticket_medio": float(ecc_df["importe"].mean()),
+        }
+    return result
+
+
+def portfolio_match(df: pd.DataFrame, keywords: list[str] | None = None) -> float:
+    """% de licitaciones cuyo título/descripción contiene al menos una keyword del portfolio."""
+    if df.empty:
+        return 0.0
+    if keywords is None:
+        from dashboard.kpi_config import SAP_SERVICES_PORTFOLIO
+
+        keywords = SAP_SERVICES_PORTFOLIO
+    if not keywords:
+        return 0.0
+    text = (
+        df["titulo"].fillna("").astype(str) + " " + df.get("descripcion", "").fillna("").astype(str)
+    ).str.lower()
+    kws = [k.lower() for k in keywords]
+    mask = text.apply(lambda t: any(k in t for k in kws))
+    return float(mask.sum() / len(df) * 100)
+
+
+# ── KPIs "para hoy" — accionables ───────────────────────────────────────────
+
+
+def calientes_hoy(
+    df: pd.DataFrame,
+    df_adj: pd.DataFrame | None = None,
+    watchlist_ids: set[str] | None = None,
+) -> pd.DataFrame:
+    """Licitaciones 'calientes' = en plazo + importe > P75 + riesgo ≤1 flag.
+
+    Si `watchlist_ids` está presente, además se exige match con la watchlist.
+    Devuelve DataFrame con columnas del original + 'riesgo_score'.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    d = df.copy()
+
+    # Filtrar por estado "en plazo" o equivalente
+    en_plazo_states = {"PUB", "EV"}
+    if "estado" in d.columns:
+        d = d[d["estado"].isin(en_plazo_states)]
+
+    if d.empty:
+        return pd.DataFrame()
+
+    # Umbral P75 del importe
+    p75 = d["importe"].quantile(0.75) if d["importe"].notna().any() else 0
+    d = d[d["importe"].fillna(0) >= p75]
+
+    if d.empty:
+        return pd.DataFrame()
+
+    # Filtrar por watchlist si procede
+    if watchlist_ids:
+        d = d[d["id_externo"].isin(watchlist_ids)]
+        if d.empty:
+            return pd.DataFrame()
+
+    # Añadir riesgo score si hay adjudicaciones históricas
+    if df_adj is not None and not df_adj.empty:
+        rf = risk_flags(d, df_adj)
+        d = d.merge(rf, on="id_externo", how="left")
+        d["riesgo_score"] = d["riesgo_score"].fillna(0).astype(int)
+        d = d[d["riesgo_score"] <= 1]
+
+    return d
+
+
+def vencen_en(df: pd.DataFrame, horas: int = 48) -> int:
+    """Nº de licitaciones cuyo plazo de presentación vence en las próximas N horas."""
+    if df.empty or "fecha_fin_plazo" not in df.columns:
+        return 0
+    hoy = pd.Timestamp.utcnow()
+    limite = hoy + pd.Timedelta(hours=horas)
+    fp = pd.to_datetime(df["fecha_fin_plazo"], errors="coerce", utc=True)
+    mask = (fp >= hoy) & (fp <= limite)
+    return int(mask.sum())
+
+
+def velocity_funnel(df: pd.DataFrame, df_adj: pd.DataFrame | None = None) -> dict[str, float]:
+    """Días medianos que tarda una licitación en cada transición.
+
+    - pub_a_adj: mediana días publicación → adjudicación (de df_adj si existe).
+    - pub_a_fin_plazo: mediana días publicación → fin de plazo de presentación.
+    """
+    out: dict[str, float] = {}
+    if not df.empty and "fecha_fin_plazo" in df.columns:
+        fp = pd.to_datetime(df["fecha_publicacion"], errors="coerce", utc=True)
+        ff = pd.to_datetime(df["fecha_fin_plazo"], errors="coerce", utc=True)
+        diff = (ff - fp).dt.days
+        valid = diff[diff > 0]
+        if not valid.empty:
+            out["pub_a_fin_plazo"] = float(valid.median())
+
+    if df_adj is not None and not df_adj.empty and "fecha_adjudicacion" in df_adj.columns:
+        adj_merged = df_adj.merge(
+            df[["id_externo", "fecha_publicacion"]].rename(columns={"id_externo": "licitacion_id"}),
+            on="licitacion_id",
+            how="left",
+        )
+        lt = lead_time_medio(adj_merged)
+        if lt is not None:
+            out["pub_a_adj"] = float(lt)
+    return out
+
+
+def tasa_conversion_organo(df: pd.DataFrame, top_n: int = 5) -> pd.DataFrame:
+    """% de licitaciones de cada órgano que acaban en estado ADJ.
+
+    Útil para identificar órganos que "realmente compran" (alta conversión)
+    vs los que publican y anulan.
+    """
+    if df.empty or "organo_contratacion" not in df.columns or "estado" not in df.columns:
+        return pd.DataFrame(columns=["organo", "total", "adjudicadas", "tasa"])
+    g = df.groupby("organo_contratacion")
+    stats = g.agg(
+        total=("id_externo", "count"),
+        adjudicadas=("estado", lambda s: (s == "ADJ").sum()),
+    ).reset_index()
+    # Filtrar órganos con al menos 5 licitaciones para que el ratio sea significativo
+    stats = stats[stats["total"] >= 5]
+    if stats.empty:
+        return pd.DataFrame(columns=["organo", "total", "adjudicadas", "tasa"])
+    stats["tasa"] = stats["adjudicadas"] / stats["total"] * 100
+    stats = stats.rename(columns={"organo_contratacion": "organo"})
+    return stats.sort_values("tasa", ascending=False).head(top_n)
+
+
+# ── Calidad del dato ────────────────────────────────────────────────────────
+
+
+def calidad_dato(df: pd.DataFrame) -> dict[str, float]:
+    """Métricas de completitud del dataset.
+
+    Returns:
+        dict con claves: pct_cpv_valido, pct_importe, pct_fecha_pub, pct_titulo.
+    """
+    if df.empty:
+        return {"pct_cpv_valido": 0.0, "pct_importe": 0.0, "pct_fecha_pub": 0.0, "pct_titulo": 0.0}
+    n = len(df)
+    pct_cpv = 0.0
+    if "cpv" in df.columns:
+        pct_cpv = float(df["cpv"].astype(str).str.match(r"^\d{8,}$", na=False).sum() / n * 100)
+    pct_importe = float(df["importe"].notna().sum() / n * 100) if "importe" in df.columns else 0.0
+    pct_fp = (
+        float(df["fecha_publicacion"].notna().sum() / n * 100)
+        if "fecha_publicacion" in df.columns
+        else 0.0
+    )
+    pct_titulo = (
+        float((df["titulo"].notna() & (df["titulo"].astype(str).str.len() > 10)).sum() / n * 100)
+        if "titulo" in df.columns
+        else 0.0
+    )
+    return {
+        "pct_cpv_valido": pct_cpv,
+        "pct_importe": pct_importe,
+        "pct_fecha_pub": pct_fp,
+        "pct_titulo": pct_titulo,
+    }
+
+
 def risk_flags(df_lics: pd.DataFrame, df_adj: pd.DataFrame) -> pd.DataFrame:
     """Calcula flags de riesgo para cada licitación (vectorizado).
 

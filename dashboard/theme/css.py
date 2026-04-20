@@ -82,6 +82,16 @@ def build_css(t: Tokens = TOKENS) -> str:
   .kpi-card .delta.up {{ color: {c.accent_primary}; }}
   .kpi-card .delta.down {{ color: {c.danger}; }}
   .kpi-card .icon {{ font-size: 1rem; opacity: 0.35; float: right; }}
+  .kpi-card .anomaly-badge {{
+    float: right; margin-right: 6px; font-size: 0.9rem;
+    color: {c.danger}; cursor: help; line-height: 1;
+  }}
+  .kpi-card .sparkline-wrap {{
+    margin-top: calc(6px * var(--density)); line-height: 0;
+    opacity: 0.85;
+  }}
+  .kpi-card .sparkline {{ display: block; }}
+  .kpi-card[title] {{ cursor: help; }}
 
   /* ── Top cards ────────────────────────────────────────────────────── */
   .top-card {{

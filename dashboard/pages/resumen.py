@@ -10,18 +10,29 @@ from dashboard.components.cards import top_card
 from dashboard.components.kpi import kpi_card
 from dashboard.components.states import guarded_render
 from dashboard.data_loader import load_adjudicaciones
+from dashboard.kpi_config import KPI_FORMULAS, KPI_THRESHOLDS
 from dashboard.pages._base import PageContext
 from dashboard.stats import (
+    calientes_hoy,
     hhi_concentracion,
+    is_anomaly,
+    kpi_sparkline_series,
     lead_time_medio,
     pct_oferta_unica,
+    vencen_en,
+    yoy_delta,
 )
+from dashboard.utils.export import kpis_snapshot_csv
 from dashboard.utils.format import fmt_eur
 
 
 @guarded_render
 def render(ctx: PageContext) -> None:
     df = ctx.df
+    adj_resumen = load_adjudicaciones()
+
+    # ── Banner "Para hoy" — señales accionables ─────────────────────
+    _render_banner_hoy(df, adj_resumen)
 
     cL, cR = st.columns([2, 1])
     with cL:
@@ -84,10 +95,14 @@ def render(ctx: PageContext) -> None:
             st.plotly_chart(fig, use_container_width=True)
 
     # ── Indicadores de mercado ──
-    adj_resumen = load_adjudicaciones()
     if not adj_resumen.empty:
         ids_filt = set(df["id_externo"])
         adj_r = adj_resumen[adj_resumen["licitacion_id"].isin(ids_filt)]
+
+        # Sparkline histórica de volumen (reutilizada en varios KPIs)
+        sp_count = kpi_sparkline_series(df, metric="count", freq="W", periods=12)
+        sp_sum = kpi_sparkline_series(df, metric="sum", freq="W", periods=12)
+
         cM1, cM2, cM3 = st.columns(3)
         with cM1:
             pct_pyme = (
@@ -95,8 +110,16 @@ def render(ctx: PageContext) -> None:
                 if adj_r["es_pyme"].notna().any()
                 else 0
             )
+            th_pyme = KPI_THRESHOLDS["pct_pyme"]
             st.markdown(
-                kpi_card("% adjudicado PYMEs", f"{pct_pyme:.0f}%", icon="🏭"),
+                kpi_card(
+                    "% adjudicado PYMEs",
+                    f"{pct_pyme:.0f}%",
+                    delta="del nº de adjudicaciones",
+                    delta_up=pct_pyme >= th_pyme["ok"],
+                    icon="🏭",
+                    tooltip=KPI_FORMULAS["pct_pyme"],
+                ),
                 unsafe_allow_html=True,
             )
         with cM2:
@@ -106,13 +129,15 @@ def render(ctx: PageContext) -> None:
                 .sort_values(ascending=False)
             )
             top10 = (top_cum.head(10).sum() / top_cum.sum() * 100) if top_cum.sum() else 0
+            th_c10 = KPI_THRESHOLDS["concentracion_top10"]
             st.markdown(
                 kpi_card(
                     "Concentración top 10",
                     f"{top10:.0f}%",
                     delta="del importe adjudicado",
-                    delta_up=top10 < 60,
+                    delta_up=top10 < th_c10["ok"],
                     icon="📊",
+                    tooltip=KPI_FORMULAS["concentracion_top10"],
                 ),
                 unsafe_allow_html=True,
             )
@@ -120,7 +145,13 @@ def render(ctx: PageContext) -> None:
             ofertas_med = adj_r["n_ofertas_recibidas"].median()
             of_txt = f"{ofertas_med:.0f}" if pd.notna(ofertas_med) else "—"
             st.markdown(
-                kpi_card("Ofertas/adjudicación", of_txt, delta="mediana", icon="📨"),
+                kpi_card(
+                    "Ofertas/adjudicación",
+                    of_txt,
+                    delta="mediana",
+                    icon="📨",
+                    tooltip=KPI_FORMULAS["ofertas_adj"],
+                ),
                 unsafe_allow_html=True,
             )
 
@@ -143,16 +174,18 @@ def render(ctx: PageContext) -> None:
                     lt_txt,
                     delta="mediana",
                     icon="⏱",
+                    tooltip=KPI_FORMULAS["lead_time"],
                 ),
                 unsafe_allow_html=True,
             )
 
         # HHI de concentración
         hhi_val = hhi_concentracion(adj_r)
-        if hhi_val < 1500:
+        th_hhi = KPI_THRESHOLDS["hhi"]
+        if hhi_val < th_hhi["competitivo"]:
             hhi_label = "competitivo"
             hhi_up = True
-        elif hhi_val < 2500:
+        elif hhi_val < th_hhi["moderado"]:
             hhi_label = "moderado"
             hhi_up = True
         else:
@@ -166,20 +199,143 @@ def render(ctx: PageContext) -> None:
                     delta=f"mercado {hhi_label}",
                     delta_up=hhi_up,
                     icon="📊",
+                    tooltip=KPI_FORMULAS["hhi"],
                 ),
                 unsafe_allow_html=True,
             )
 
         # % oferta única
         ou = pct_oferta_unica(adj_r)
+        th_ou = KPI_THRESHOLDS["oferta_unica"]
         with cS3:
             st.markdown(
                 kpi_card(
                     "Sin competencia",
                     f"{ou:.0f}%",
                     delta="1 sola oferta",
-                    delta_up=ou < 20,
+                    delta_up=ou < th_ou["ok"],
                     icon="🔒",
+                    tooltip=KPI_FORMULAS["oferta_unica"],
                 ),
                 unsafe_allow_html=True,
             )
+
+        # ── Snapshot CSV ───────────────────────────────────────────
+        st.markdown("")
+        snapshot = {
+            "% PYMEs": f"{pct_pyme:.0f}%",
+            "Concentración top 10": f"{top10:.0f}%",
+            "Ofertas/adjudicación (mediana)": of_txt,
+            "Lead time pub→adj": lt_txt,
+            "HHI concentración": f"{hhi_val:,.0f} ({hhi_label})",
+            "% sin competencia": f"{ou:.0f}%",
+        }
+        csv_bytes = kpis_snapshot_csv(snapshot, titulo="Snapshot KPIs — Resumen")
+        fname = f"kpis_resumen_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M')}.csv"
+        st.download_button(
+            "📸 Descargar snapshot KPIs (CSV)",
+            data=csv_bytes,
+            file_name=fname,
+            mime="text/csv",
+            help="Exporta los indicadores actuales a CSV para pegarlos en un informe.",
+        )
+
+        # Silenciar lint sobre variables usadas en el ámbito pero no en render
+        _ = (sp_count, sp_sum)
+
+
+def _render_banner_hoy(df: pd.DataFrame, adj: pd.DataFrame) -> None:
+    """Banner superior con señales accionables "para hoy"."""
+    if df.empty:
+        return
+
+    # Watchlist matches (si hay sesión con la lista cargada)
+    watchlist_ids: set[str] = set()
+    matches_session = st.session_state.get("watchlist_matches") or []
+    if matches_session:
+        try:
+            watchlist_ids = {
+                str(m.get("id_externo")) for m in matches_session if m.get("id_externo")
+            }
+        except Exception:
+            watchlist_ids = set()
+
+    # Calculos KPI
+    calientes = calientes_hoy(df, adj, watchlist_ids=watchlist_ids or None)
+    vencen_48 = vencen_en(df, horas=48)
+    n_wl = len(watchlist_ids)
+
+    # Nuevas últimas 24h
+    hoy = pd.Timestamp.utcnow()
+    ult24h = df[df["fecha_publicacion"] >= (hoy - pd.Timedelta(hours=24))]
+    n_24h = len(ult24h)
+
+    # Anomaly: ¿las nuevas-24h son anómalas vs histórico diario?
+    serie_daily = kpi_sparkline_series(df, metric="count", freq="D", periods=30)
+    anom_24h = is_anomaly(float(n_24h), serie_daily[:-1] if serie_daily else [])
+
+    # Delta vs ayer (últimas 24h anteriores)
+    ayer = df[
+        (df["fecha_publicacion"] >= (hoy - pd.Timedelta(hours=48)))
+        & (df["fecha_publicacion"] < (hoy - pd.Timedelta(hours=24)))
+    ]
+    n_ayer = len(ayer)
+    delta_24h = (
+        f"{((n_24h - n_ayer) / n_ayer * 100):+.0f}% vs ayer" if n_ayer else f"{n_24h} nuevas"
+    )
+
+    # YoY corto para segundo KPI
+    _, _, pct_n_30 = yoy_delta(df, col="importe", agg="count", days=30)
+
+    st.markdown("#### Para hoy")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(
+            kpi_card(
+                "🆕 Nuevas 24h",
+                f"{n_24h:,}",
+                delta=delta_24h,
+                delta_up=n_24h >= n_ayer,
+                icon="🕐",
+                sparkline=serie_daily,
+                anomaly=anom_24h,
+                tooltip="Licitaciones publicadas en las últimas 24 horas vs las 24h anteriores.",
+            ),
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            kpi_card(
+                "⏰ Vencen en 48h",
+                f"{vencen_48:,}",
+                delta="plazo inminente",
+                delta_up=False,
+                icon="⚠",
+                tooltip=KPI_FORMULAS["vencen_48h"],
+            ),
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            kpi_card(
+                "🔥 Calientes",
+                f"{len(calientes):,}",
+                delta="en plazo + alto importe + bajo riesgo",
+                icon="🎯",
+                tooltip=KPI_FORMULAS["calientes_hoy"],
+            ),
+            unsafe_allow_html=True,
+        )
+    with c4:
+        st.markdown(
+            kpi_card(
+                "🔔 Watchlist",
+                f"{n_wl:,}",
+                delta="matches activos",
+                icon="⭐",
+                tooltip="Nº de licitaciones que han disparado alguna regla de tu watchlist.",
+            ),
+            unsafe_allow_html=True,
+        )
+    st.markdown("")
+    _ = pct_n_30  # reservado para futuros tooltips comparativos
