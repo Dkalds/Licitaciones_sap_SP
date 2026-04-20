@@ -159,13 +159,8 @@ def render(ctx: PageContext) -> None:
         st.markdown("#### Salud competitiva")
         cS1, cS2, cS3 = st.columns(3)
 
-        # Lead time — fecha_publicacion + fecha_adjudicacion
-        adj_lt = adj_r.merge(
-            df[["id_externo", "fecha_publicacion"]].rename(columns={"id_externo": "licitacion_id"}),
-            on="licitacion_id",
-            how="left",
-        )
-        lt = lead_time_medio(adj_lt)
+        # Lead time — adj_r ya contiene fecha_publicacion (JOIN en load_adjudicaciones).
+        lt = lead_time_medio(adj_r)
         lt_txt = f"{lt:.0f} días" if lt is not None else "—"
         with cS1:
             st.markdown(
