@@ -47,12 +47,13 @@ jobs:
           ALERT_SMTP_PASSWORD: ${{ secrets.ALERT_SMTP_PASSWORD }}
           ALERT_MIN_LEVEL: ${{ vars.ALERT_MIN_LEVEL || 'warn' }}
           LOG_FORMAT: json
+          SCRAPER_MONTHS: ${{ inputs.months || 3 }}
         run: |
           MAX_RETRIES=2
           DELAY_SECS=90
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo "=== Intento $attempt/$MAX_RETRIES ==="
-            python -m scheduler.run_update --months ${{ inputs.months || 3 }} && exit 0
+            python -m scheduler.run_update --months "$SCRAPER_MONTHS" && exit 0
             echo "Intento $attempt fallido."
             if [ "$attempt" -lt "$MAX_RETRIES" ]; then
               echo "Reintentando en ${DELAY_SECS}s..."
