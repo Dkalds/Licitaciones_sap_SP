@@ -11,6 +11,11 @@ from dashboard.components.kpi import kpi_card
 from dashboard.components.states import guarded_render
 from dashboard.data_loader import load_adjudicaciones
 from dashboard.pages._base import PageContext
+from dashboard.stats import (
+    hhi_concentracion,
+    lead_time_medio,
+    pct_oferta_unica,
+)
 from dashboard.utils.format import fmt_eur
 
 
@@ -116,5 +121,65 @@ def render(ctx: PageContext) -> None:
             of_txt = f"{ofertas_med:.0f}" if pd.notna(ofertas_med) else "—"
             st.markdown(
                 kpi_card("Ofertas/adjudicación", of_txt, delta="mediana", icon="📨"),
+                unsafe_allow_html=True,
+            )
+
+        # ── Salud competitiva del mercado ─────────────────────────
+        st.markdown("#### Salud competitiva")
+        cS1, cS2, cS3 = st.columns(3)
+
+        # Lead time — fecha_publicacion + fecha_adjudicacion
+        adj_lt = adj_r.merge(
+            df[["id_externo", "fecha_publicacion"]].rename(columns={"id_externo": "licitacion_id"}),
+            on="licitacion_id",
+            how="left",
+        )
+        lt = lead_time_medio(adj_lt)
+        lt_txt = f"{lt:.0f} días" if lt is not None else "—"
+        with cS1:
+            st.markdown(
+                kpi_card(
+                    "Lead time pub→adj",
+                    lt_txt,
+                    delta="mediana",
+                    icon="⏱",
+                ),
+                unsafe_allow_html=True,
+            )
+
+        # HHI de concentración
+        hhi_val = hhi_concentracion(adj_r)
+        if hhi_val < 1500:
+            hhi_label = "competitivo"
+            hhi_up = True
+        elif hhi_val < 2500:
+            hhi_label = "moderado"
+            hhi_up = True
+        else:
+            hhi_label = "concentrado"
+            hhi_up = False
+        with cS2:
+            st.markdown(
+                kpi_card(
+                    "HHI concentración",
+                    f"{hhi_val:,.0f}",
+                    delta=f"mercado {hhi_label}",
+                    delta_up=hhi_up,
+                    icon="📊",
+                ),
+                unsafe_allow_html=True,
+            )
+
+        # % oferta única
+        ou = pct_oferta_unica(adj_r)
+        with cS3:
+            st.markdown(
+                kpi_card(
+                    "Sin competencia",
+                    f"{ou:.0f}%",
+                    delta="1 sola oferta",
+                    delta_up=ou < 20,
+                    icon="🔒",
+                ),
                 unsafe_allow_html=True,
             )
