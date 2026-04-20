@@ -15,6 +15,7 @@ from dashboard.stats import (
     por_cpv,
     por_estado,
     por_mes,
+    risk_flags,
     tasa_anulacion,
     top_organos,
     yoy_delta,
@@ -420,3 +421,82 @@ class TestMediaMovil:
         s = pd.Series([10.0, 20.0])
         result = media_movil(s, window=5)
         assert result.iloc[0] == pytest.approx(10.0)  # sólo 1 valor disponible
+
+
+# ─── risk_flags ──────────────────────────────────────────────────────────────
+
+
+def _lics_df() -> pd.DataFrame:
+    """5 licitaciones con datos suficientes para todos los flags."""
+    return pd.DataFrame(
+        {
+            "id_externo": ["id-1", "id-2", "id-3", "id-4", "id-5"],
+            "organo_contratacion": ["OrgA", "OrgA", "OrgB", "OrgB", "OrgC"],
+            "cpv": ["7200", "7200", "7200", "7201", "8000"],
+            "importe": [100_000.0, 200_000.0, 50_000.0, 1_000.0, 300_000.0],
+            "estado": ["PUB", "PUB", "ANUL", "ANUL", "PUB"],
+        }
+    )
+
+
+def _adj_df() -> pd.DataFrame:
+    """Adjudicaciones con monopolio en OrgA+cpv72 y baja competencia en cpv72."""
+    return pd.DataFrame(
+        {
+            "licitacion_id": ["id-1", "id-2", "id-3"],
+            "empresa_key": ["emp_A", "emp_A", "emp_B"],  # emp_A gana 2/2 en OrgA→monopolio
+            "n_ofertas_recibidas": [1.0, 1.0, 2.0],     # mediana cpv72 = 1 → baja competencia
+            "organo_contratacion": ["OrgA", "OrgA", "OrgB"],
+        }
+    )
+
+
+class TestRiskFlags:
+    def test_empty_lics_returns_empty(self):
+        result = risk_flags(pd.DataFrame(), pd.DataFrame())
+        assert result.empty
+        assert list(result.columns) == ["id_externo", "riesgo_flags", "riesgo_score"]
+
+    def test_no_adj_returns_no_monopolio_no_baja_competencia(self):
+        result = risk_flags(_lics_df(), pd.DataFrame())
+        assert "id-1" in result["id_externo"].values
+        row = result[result["id_externo"] == "id-1"].iloc[0]
+        assert "Monopolio" not in row["riesgo_flags"]
+        assert "Baja competencia" not in row["riesgo_flags"]
+
+    def test_monopolio_flag_detected(self):
+        result = risk_flags(_lics_df(), _adj_df())
+        # id-1 y id-2 están en OrgA con cpv72, donde emp_A tiene cuota 100% → monopolio
+        row1 = result[result["id_externo"] == "id-1"].iloc[0]
+        assert "Monopolio" in row1["riesgo_flags"]
+
+    def test_baja_competencia_flag_detected(self):
+        result = risk_flags(_lics_df(), _adj_df())
+        # mediana de n_ofertas en cpv "72" es 1 → baja competencia
+        row1 = result[result["id_externo"] == "id-1"].iloc[0]
+        assert "Baja competencia" in row1["riesgo_flags"]
+
+    def test_alta_anulacion_flag_detected(self):
+        result = risk_flags(_lics_df(), pd.DataFrame())
+        # OrgB tiene 2 licitaciones, 2 ANUL → tasa 100% > 25%
+        row3 = result[result["id_externo"] == "id-3"].iloc[0]
+        assert "Alta anulación" in row3["riesgo_flags"]
+
+    def test_presupuesto_bajo_flag_detected(self):
+        result = risk_flags(_lics_df(), pd.DataFrame())
+        # id-4 tiene importe 1000, muy por debajo del P10 de su CPV
+        row4 = result[result["id_externo"] == "id-4"].iloc[0]
+        assert "Presupuesto bajo" in row4["riesgo_flags"]
+
+    def test_score_reflects_flag_count(self):
+        result = risk_flags(_lics_df(), _adj_df())
+        for _, row in result.iterrows():
+            n_flags = len([f for f in row["riesgo_flags"].split(" · ") if f])
+            assert row["riesgo_score"] == n_flags
+
+    def test_clean_row_has_empty_flags(self):
+        result = risk_flags(_lics_df(), _adj_df())
+        # id-5 está en OrgC (0% anulación), CPV "80" sin adj → sin flags
+        row5 = result[result["id_externo"] == "id-5"].iloc[0]
+        assert row5["riesgo_flags"] == ""
+        assert row5["riesgo_score"] == 0

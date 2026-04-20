@@ -12,6 +12,7 @@ from dashboard.components.tables import data_table
 from dashboard.data_loader import load_adjudicaciones
 from dashboard.forecast import build_forecast_df
 from dashboard.pages._base import PageContext
+from dashboard.stats import risk_flags
 from dashboard.utils.format import fmt_eur
 
 
@@ -247,6 +248,20 @@ def render(ctx: PageContext) -> None:
 
     # ── Tabla de oportunidades ───────────────────────────────────
     st.subheader("Listado de oportunidades")
+
+    # Añadir flags de riesgo (silencioso si falla)
+    oport_display = oport.copy()
+    try:
+        rf = risk_flags(ctx.df_full, adj_rv)
+        oport_display = oport_display.merge(
+            rf[["id_externo", "riesgo_flags", "riesgo_score"]],
+            on="id_externo",
+            how="left",
+        )
+        oport_display["riesgo_flags"] = oport_display["riesgo_flags"].fillna("")
+    except Exception:
+        oport_display["riesgo_flags"] = ""
+
     cols_rv = [
         "fecha_fin_estimada",
         "relicit_inicio",
@@ -255,16 +270,17 @@ def render(ctx: PageContext) -> None:
         "ccaa",
         "importe",
         "estado_forecast",
+        "riesgo_flags",
     ]
-    if "adjudicatario_actual" in oport.columns:
+    if "adjudicatario_actual" in oport_display.columns:
         cols_rv.append("adjudicatario_actual")
-    if "prorroga_descripcion" in oport.columns:
+    if "prorroga_descripcion" in oport_display.columns:
         cols_rv.append("prorroga_descripcion")
-    if "url" in oport.columns:
+    if "url" in oport_display.columns:
         cols_rv.append("url")
-    cols_rv = [c for c in cols_rv if c in oport.columns]
+    cols_rv = [c for c in cols_rv if c in oport_display.columns]
     data_table(
-        oport[cols_rv].sort_values("fecha_fin_estimada"),
+        oport_display[cols_rv].sort_values("fecha_fin_estimada"),
         height=480,
         column_config={
             "fecha_fin_estimada": st.column_config.DateColumn("Fin estimado"),
@@ -274,6 +290,7 @@ def render(ctx: PageContext) -> None:
             "ccaa": st.column_config.TextColumn("CCAA", width="small"),
             "importe": st.column_config.NumberColumn("Importe lic.", format="%.0f €"),
             "estado_forecast": st.column_config.TextColumn("Estado"),
+            "riesgo_flags": st.column_config.TextColumn("⚠️ Riesgo", width="medium"),
             "adjudicatario_actual": st.column_config.TextColumn(
                 "Adjudicatario actual", width="medium"
             ),
