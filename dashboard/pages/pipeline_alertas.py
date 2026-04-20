@@ -12,7 +12,7 @@ from dashboard.components.tables import data_table
 from dashboard.data_loader import load_adjudicaciones
 from dashboard.forecast import build_forecast_df
 from dashboard.pages._base import PageContext
-from dashboard.stats import risk_flags
+from dashboard.stats import ratio_relicitacion, risk_flags
 from dashboard.utils.format import fmt_eur
 
 
@@ -108,6 +108,52 @@ def render(ctx: PageContext) -> None:
     )
     kv4.markdown(
         kpi_card("Importe en ventana", fmt_eur(en_ventana["importe"].sum(skipna=True)), icon="🚨"),
+        unsafe_allow_html=True,
+    )
+
+    # ── KPIs de riesgo y tipología del pipeline ──────────────────────
+    riesgo = risk_flags(oport, adj_rv) if not oport.empty else pd.DataFrame()
+    if not riesgo.empty:
+        oport_r = oport.merge(riesgo, on="id_externo", how="left")
+        oport_r["riesgo_score"] = oport_r["riesgo_score"].fillna(0).astype(int)
+        n_riesgo_alto = int((oport_r["riesgo_score"] >= 2).sum())
+        imp_riesgo = float(oport_r[oport_r["riesgo_score"] >= 1]["importe"].sum(skipna=True))
+        imp_total = float(oport_r["importe"].sum(skipna=True))
+        pct_imp_riesgo = (imp_riesgo / imp_total * 100) if imp_total else 0.0
+    else:
+        n_riesgo_alto = 0
+        pct_imp_riesgo = 0.0
+
+    pct_relicit = ratio_relicitacion(oport, adj_rv)
+
+    kR1, kR2, kR3 = st.columns(3)
+    kR1.markdown(
+        kpi_card(
+            "Riesgo alto",
+            f"{n_riesgo_alto:,}",
+            delta="≥2 flags activos",
+            delta_up=False,
+            icon="⚠️",
+        ),
+        unsafe_allow_html=True,
+    )
+    kR2.markdown(
+        kpi_card(
+            "% Importe con riesgo",
+            f"{pct_imp_riesgo:.0f}%",
+            delta="al menos 1 flag",
+            delta_up=pct_imp_riesgo < 30,
+            icon="🛡",
+        ),
+        unsafe_allow_html=True,
+    )
+    kR3.markdown(
+        kpi_card(
+            "% Re-licitaciones",
+            f"{pct_relicit:.0f}%",
+            delta="con ganador previo conocido",
+            icon="🔄",
+        ),
         unsafe_allow_html=True,
     )
 

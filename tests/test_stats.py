@@ -6,18 +6,24 @@ import pandas as pd
 import pytest
 
 from dashboard.stats import (
+    ccaa_mas_activa,
+    concentracion_geografica,
     funnel_estados,
     hhi_concentracion,
+    indice_novedad,
     kpis,
     lead_time_medio,
     media_movil,
+    mes_pico,
     pct_oferta_unica,
     por_cpv,
     por_estado,
     por_mes,
+    ratio_relicitacion,
     risk_flags,
     tasa_anulacion,
     top_organos,
+    ventana_anticipacion,
     yoy_delta,
 )
 
@@ -500,3 +506,129 @@ class TestRiskFlags:
         row5 = result[result["id_externo"] == "id-5"].iloc[0]
         assert row5["riesgo_flags"] == ""
         assert row5["riesgo_score"] == 0
+
+
+# ─── ventana_anticipacion ────────────────────────────────────────────────────
+
+
+class TestVentanaAnticipacion:
+    def test_empty_returns_none(self):
+        assert ventana_anticipacion(pd.DataFrame()) is None
+
+    def test_missing_column_returns_none(self):
+        df = pd.DataFrame({"fecha_publicacion": ["2024-01-01"]})
+        assert ventana_anticipacion(df) is None
+
+    def test_returns_median_days(self):
+        df = pd.DataFrame(
+            {
+                "fecha_publicacion": ["2024-01-01", "2024-01-01"],
+                "fecha_fin_contrato": ["2024-07-01", "2025-01-01"],
+            }
+        )
+        result = ventana_anticipacion(df)
+        assert result is not None
+        assert result > 0
+
+
+# ─── indice_novedad ──────────────────────────────────────────────────────────
+
+
+class TestIndiceNovedad:
+    def test_empty_returns_zero(self):
+        assert indice_novedad(pd.DataFrame(), pd.DataFrame()) == 0.0
+
+    def test_no_adj_returns_100(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b"],
+                "organo_contratacion": ["Org1", "Org2"],
+                "cpv": ["72", "73"],
+            }
+        )
+        assert indice_novedad(df, pd.DataFrame()) == 100.0
+
+    def test_half_novedad(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b"],
+                "organo_contratacion": ["Org1", "Org2"],
+                "cpv": ["7200", "7300"],
+            }
+        )
+        # Solo Org1+cpv72 aparece en histórico → b (Org2+73) es novedad (50%)
+        adj = pd.DataFrame(
+            {
+                "licitacion_id": ["a"],
+            }
+        )
+        result = indice_novedad(df, adj)
+        assert result == 50.0
+
+
+# ─── ccaa_mas_activa / concentracion_geografica / mes_pico ──────────────────
+
+
+class TestGeoKpis:
+    def test_ccaa_mas_activa_empty(self):
+        assert ccaa_mas_activa(pd.DataFrame()) is None
+
+    def test_ccaa_mas_activa_picks_top(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b", "c", "d"],
+                "ccaa": ["Madrid", "Madrid", "Catalunya", "Madrid"],
+                "importe": [100.0, 200.0, 500.0, 100.0],
+            }
+        )
+        result = ccaa_mas_activa(df)
+        assert result is not None
+        assert result["ccaa"] == "Madrid"
+        assert result["n"] == 3
+
+    def test_concentracion_geografica_empty(self):
+        assert concentracion_geografica(pd.DataFrame()) == 0.0
+
+    def test_concentracion_geografica_top1_is_100(self):
+        df = pd.DataFrame({"ccaa": ["Madrid"], "importe": [1000.0]})
+        assert concentracion_geografica(df, top_n=1) == pytest.approx(100.0)
+
+    def test_mes_pico_empty(self):
+        assert mes_pico(pd.DataFrame()) is None
+
+    def test_mes_pico_returns_max_importe_month(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b", "c"],
+                "fecha_publicacion": pd.to_datetime(["2024-01-15", "2024-02-15", "2024-02-20"]),
+                "importe": [100.0, 300.0, 500.0],
+            }
+        )
+        result = mes_pico(df)
+        assert result is not None
+        assert "Feb" in result["mes"]
+        assert result["n"] == 2
+
+
+# ─── ratio_relicitacion ──────────────────────────────────────────────────────
+
+
+class TestRatioRelicitacion:
+    def test_empty_pipeline_returns_zero(self):
+        assert ratio_relicitacion(pd.DataFrame(), pd.DataFrame()) == 0.0
+
+    def test_empty_adj_returns_zero(self):
+        df = pd.DataFrame({"id_externo": ["a", "b"]})
+        assert ratio_relicitacion(df, pd.DataFrame()) == 0.0
+
+    def test_half_relicitacion(self):
+        pipeline = pd.DataFrame({"id_externo": ["a", "b", "c", "d"]})
+        adj = pd.DataFrame({"licitacion_id": ["a", "b"]})
+        result = ratio_relicitacion(pipeline, adj)
+        assert result == 50.0
+
+    def test_all_relicitacion(self):
+        pipeline = pd.DataFrame({"id_externo": ["a", "b"]})
+        adj = pd.DataFrame({"licitacion_id": ["a", "b", "c"]})
+        result = ratio_relicitacion(pipeline, adj)
+        assert result == 100.0

@@ -41,6 +41,15 @@ def render(ctx: PageContext) -> None:
     runs["duration_s"] = (runs["duration_ms"] / 1000).round(1)
 
     last = runs.iloc[0]
+    hoy = pd.Timestamp.utcnow().tz_localize(None)
+    last7 = runs[runs["started_at"] >= (hoy - pd.Timedelta(days=7))]
+    last30 = runs[runs["started_at"] >= (hoy - pd.Timedelta(days=30))]
+    prev_week = runs[
+        (runs["started_at"] >= (hoy - pd.Timedelta(days=14)))
+        & (runs["started_at"] < (hoy - pd.Timedelta(days=7)))
+    ]
+
+    # ── Fila 1: estado del último run y salud reciente ────────────
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(
@@ -55,22 +64,76 @@ def render(ctx: PageContext) -> None:
             unsafe_allow_html=True,
         )
     with k2:
-        last7 = runs[
-            runs["started_at"] >= (pd.Timestamp.utcnow().tz_localize(None) - pd.Timedelta(days=7))
-        ]
-        ok_rate = (last7["status"] == "ok").sum() / max(len(last7), 1) * 100
+        ok_rate_7 = (last7["status"] == "ok").sum() / max(len(last7), 1) * 100
         st.markdown(
-            kpi_card("Éxito 7d", f"{ok_rate:.0f}%", icon="✅", delta=f"{len(last7)} runs"),
+            kpi_card(
+                "Éxito 7d",
+                f"{ok_rate_7:.0f}%",
+                icon="✅",
+                delta=f"{len(last7)} runs",
+                delta_up=ok_rate_7 >= 90,
+            ),
             unsafe_allow_html=True,
         )
     with k3:
+        ok_rate_30 = (last30["status"] == "ok").sum() / max(len(last30), 1) * 100
         st.markdown(
-            kpi_card("Nuevas último run", f"{int(last['licitaciones_nuevas']):,}", icon="🆕"),
+            kpi_card(
+                "Éxito 30d",
+                f"{ok_rate_30:.0f}%",
+                icon="📅",
+                delta=f"{len(last30)} runs",
+                delta_up=ok_rate_30 >= 90,
+            ),
             unsafe_allow_html=True,
         )
     with k4:
         st.markdown(
             kpi_card("Duración último run", f"{last['duration_s'] or 0:.1f}s", icon="⏱"),
+            unsafe_allow_html=True,
+        )
+
+    # ── Fila 2: volumen procesado (nuevas + acumulado) ────────────
+    k5, k6, k7, k8 = st.columns(4)
+    with k5:
+        st.markdown(
+            kpi_card("Nuevas último run", f"{int(last['licitaciones_nuevas']):,}", icon="🆕"),
+            unsafe_allow_html=True,
+        )
+    with k6:
+        nuevas_7d = int(last7["licitaciones_nuevas"].fillna(0).sum())
+        nuevas_prev = int(prev_week["licitaciones_nuevas"].fillna(0).sum())
+        delta_week_pct = (nuevas_7d - nuevas_prev) / nuevas_prev * 100 if nuevas_prev else 0.0
+        st.markdown(
+            kpi_card(
+                "Nuevas (7d)",
+                f"{nuevas_7d:,}",
+                delta=f"{delta_week_pct:+.1f}% vs semana anterior",
+                delta_up=delta_week_pct >= 0,
+                icon="📥",
+            ),
+            unsafe_allow_html=True,
+        )
+    with k7:
+        total_proc = int(runs["licitaciones_nuevas"].fillna(0).sum())
+        st.markdown(
+            kpi_card(
+                "Total procesadas",
+                f"{total_proc:,}",
+                delta=f"en {len(runs)} runs",
+                icon="🗃️",
+            ),
+            unsafe_allow_html=True,
+        )
+    with k8:
+        avg_dur = float(last30["duration_s"].mean() or 0)
+        st.markdown(
+            kpi_card(
+                "Duración media 30d",
+                f"{avg_dur:.1f}s",
+                delta="promedio por run",
+                icon="⌛",
+            ),
             unsafe_allow_html=True,
         )
 

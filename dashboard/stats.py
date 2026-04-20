@@ -178,6 +178,128 @@ def media_movil(series: pd.Series, window: int = 3) -> pd.Series:
     return series.rolling(window=window, min_periods=1).mean()
 
 
+def ventana_anticipacion(df: pd.DataFrame) -> float | None:
+    """Días medianos entre publicación y fin de contrato (anticipación comercial).
+
+    Mide cuánto tiempo tiene el equipo comercial desde que sale la licitación
+    hasta que el contrato termina. Valores altos = más margen de preparación.
+    """
+    if df.empty or "fecha_fin_contrato" not in df.columns:
+        return None
+    fp = pd.to_datetime(df["fecha_publicacion"], errors="coerce", utc=True)
+    ff = pd.to_datetime(df["fecha_fin_contrato"], errors="coerce", utc=True)
+    if hasattr(fp.dt, "tz"):
+        fp = fp.dt.tz_localize(None)
+    if hasattr(ff.dt, "tz"):
+        ff = ff.dt.tz_localize(None)
+    diff = (ff - fp).dt.days
+    valid = diff[diff > 0]
+    if valid.empty:
+        return None
+    return float(valid.median())
+
+
+def indice_novedad(df: pd.DataFrame, df_adj: pd.DataFrame) -> float:
+    """% de licitaciones cuyo (órgano, CPV a 2 dígitos) no tiene histórico de adjudicación.
+
+    Útil para identificar "mercados vírgenes" donde aún no hay proveedor instalado.
+    """
+    if df.empty:
+        return 0.0
+    df_c = df.copy()
+    df_c["_cpv2"] = df_c["cpv"].astype(str).str[:2]
+
+    if df_adj.empty or "licitacion_id" not in df_adj.columns:
+        return 100.0  # todo es "nuevo" si no hay histórico
+
+    # Construir set de (órgano, cpv2) con histórico de adjudicación
+    hist = df_adj.merge(
+        df_c[["id_externo", "organo_contratacion", "_cpv2"]],
+        left_on="licitacion_id",
+        right_on="id_externo",
+        how="inner",
+    ).dropna(subset=["organo_contratacion", "_cpv2"])
+    if hist.empty:
+        return 100.0
+    pares_historicos = set(zip(hist["organo_contratacion"], hist["_cpv2"], strict=False))
+
+    # Contar licitaciones cuyo par no aparece en el histórico
+    pares_actuales = list(zip(df_c["organo_contratacion"], df_c["_cpv2"], strict=False))
+    nuevos = sum(1 for p in pares_actuales if p not in pares_historicos)
+    return float(nuevos / len(df_c) * 100)
+
+
+def ccaa_mas_activa(df: pd.DataFrame) -> dict | None:
+    """Devuelve la CCAA con más licitaciones: {ccaa, n, importe}."""
+    if df.empty or "ccaa" not in df.columns:
+        return None
+    geo = (
+        df.dropna(subset=["ccaa"])
+        .groupby("ccaa")
+        .agg(n=("id_externo", "count"), importe=("importe", "sum"))
+        .sort_values("n", ascending=False)
+    )
+    if geo.empty:
+        return None
+    row = geo.iloc[0]
+    return {
+        "ccaa": str(geo.index[0]),
+        "n": int(row["n"]),
+        "importe": float(row["importe"] or 0),
+    }
+
+
+def concentracion_geografica(df: pd.DataFrame, top_n: int = 3) -> float:
+    """% del importe total acumulado por las top N CCAA (0-100)."""
+    if df.empty or "ccaa" not in df.columns:
+        return 0.0
+    geo = df.dropna(subset=["ccaa"]).groupby("ccaa")["importe"].sum().sort_values(ascending=False)
+    total = geo.sum()
+    if total <= 0:
+        return 0.0
+    return float(geo.head(top_n).sum() / total * 100)
+
+
+def mes_pico(df: pd.DataFrame) -> dict | None:
+    """Mes con mayor volumen acumulado en el rango: {mes: str, importe: float, n: int}."""
+    if df.empty or "fecha_publicacion" not in df.columns:
+        return None
+    mensual = (
+        df.dropna(subset=["fecha_publicacion"])
+        .assign(_mes=lambda x: x["fecha_publicacion"].dt.to_period("M").dt.to_timestamp())
+        .groupby("_mes")
+        .agg(n=("id_externo", "count"), importe=("importe", "sum"))
+        .sort_values("importe", ascending=False)
+    )
+    if mensual.empty:
+        return None
+    row = mensual.iloc[0]
+    return {
+        "mes": pd.Timestamp(mensual.index[0]).strftime("%b %Y"),
+        "importe": float(row["importe"] or 0),
+        "n": int(row["n"]),
+    }
+
+
+def ratio_relicitacion(df_pipeline: pd.DataFrame, df_adj: pd.DataFrame) -> float:
+    """% de oportunidades del pipeline que vienen de un contrato ya adjudicado (re-licitación).
+
+    Identifica qué proporción son contratos con ganador previo conocido
+    (oportunidades de "arrebatar" clientes vs "virgen").
+    """
+    if df_pipeline.empty:
+        return 0.0
+    if df_adj.empty or "licitacion_id" not in df_adj.columns:
+        return 0.0
+    ids_con_adj = set(df_adj["licitacion_id"].dropna())
+    if "id_externo" not in df_pipeline.columns:
+        return 0.0
+    ids_pipeline = df_pipeline["id_externo"].dropna()
+    if ids_pipeline.empty:
+        return 0.0
+    return float(ids_pipeline.isin(ids_con_adj).sum() / len(ids_pipeline) * 100)
+
+
 def risk_flags(df_lics: pd.DataFrame, df_adj: pd.DataFrame) -> pd.DataFrame:
     """Calcula flags de riesgo para cada licitación (vectorizado).
 
