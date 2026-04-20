@@ -448,6 +448,30 @@ def pct_multi_modulo(df: pd.DataFrame) -> float:
     return float(len(multi) / len(con_modulos) * 100)
 
 
+def _build_searchable_text(df: pd.DataFrame) -> pd.Series:
+    """Concatena titulo + descripcion en una Series de strings en minusculas.
+
+    Helper privado para evitar que mypy se confunda con la concatenacion de Series
+    cuando `descripcion` no existe en el DataFrame.
+    """
+    titulo = df["titulo"].fillna("").astype(str) if "titulo" in df.columns else ""
+    desc = df["descripcion"].fillna("").astype(str) if "descripcion" in df.columns else ""
+
+    if isinstance(titulo, str) and isinstance(desc, str):
+        return pd.Series([""] * len(df), index=df.index)
+
+    parts: list[pd.Series] = []
+    if not isinstance(titulo, str):
+        parts.append(titulo)
+    if not isinstance(desc, str):
+        parts.append(desc)
+
+    combined = parts[0]
+    for p in parts[1:]:
+        combined = combined.str.cat(p, sep=" ")
+    return combined.str.lower()
+
+
 def ticket_medio_por_plataforma(df: pd.DataFrame) -> dict:
     """Importe medio de licitaciones que mencionan S/4HANA vs ECC.
 
@@ -459,13 +483,7 @@ def ticket_medio_por_plataforma(df: pd.DataFrame) -> dict:
     if df.empty:
         return result
 
-    desc = (
-        df["descripcion"].fillna("").astype(str)
-        if "descripcion" in df.columns
-        else pd.Series([""] * len(df), index=df.index)
-    )
-    text = (df["titulo"].fillna("").astype(str) + " " + desc).str.lower()
-
+    text = _build_searchable_text(df)
     s4_mask = text.apply(lambda t: any(k in t for k in S4HANA_KEYWORDS))
     ecc_mask = text.apply(lambda t: any(k in t for k in ECC_KEYWORDS))
 
@@ -495,12 +513,7 @@ def portfolio_match(df: pd.DataFrame, keywords: list[str] | None = None) -> floa
         keywords = SAP_SERVICES_PORTFOLIO
     if not keywords:
         return 0.0
-    desc = (
-        df["descripcion"].fillna("").astype(str)
-        if "descripcion" in df.columns
-        else pd.Series([""] * len(df), index=df.index)
-    )
-    text = (df["titulo"].fillna("").astype(str) + " " + desc).str.lower()
+    text = _build_searchable_text(df)
     kws = [k.lower() for k in keywords]
     mask = text.apply(lambda t: any(k in t for k in kws))
     return float(mask.sum() / len(df) * 100)
