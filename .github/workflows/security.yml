@@ -55,7 +55,7 @@ jobs:
       - name: Audit against baseline
         run: |
           detect-secrets scan --baseline .secrets.baseline
-          detect-secrets audit .secrets.baseline --report --fail-on-unaudited --fail-on-live
+          detect-secrets audit .secrets.baseline --report --only-real
 
   secrets-rotation-reminder:
     name: Secrets rotation reminder

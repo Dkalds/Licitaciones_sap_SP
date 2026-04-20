@@ -75,14 +75,16 @@ class TestNormalizeNif:
         assert normalize_nif("A.12345678") == "A12345678"  # pragma: allowlist secret
 
     def test_mayusculas(self):
-        assert normalize_nif("a12345678") == "A12345678"
+        assert normalize_nif("a12345678") == "A12345678"  # pragma: allowlist secret
 
     def test_combina_transformaciones(self):
-        assert normalize_nif(" a-123.456-78 ") == "A12345678"
+        assert normalize_nif(" a-123.456-78 ") == "A12345678"  # pragma: allowlist secret
 
     # ── Consistencia: mismos NIF, distintos formatos ─────────────────────
     def test_mismo_nif_formatos_distintos(self):
-        assert normalize_nif("B-12345678") == normalize_nif("B 12345678")
+        assert normalize_nif("B-12345678") == normalize_nif(
+            "B 12345678"
+        )  # pragma: allowlist secret
 
     # ── Entradas inválidas ───────────────────────────────────────────────
     def test_none_devuelve_none(self):
