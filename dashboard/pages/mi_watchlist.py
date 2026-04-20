@@ -110,7 +110,7 @@ def render(ctx: PageContext) -> None:
         return
 
     def _any_match(row: pd.Series) -> bool:
-        record = dict(row.to_dict())  # type: ignore[arg-type]
+        record = {str(k): v for k, v in row.to_dict().items()}
         return any(matches_licitacion(e, record) for e in entries)
 
     mask = df.apply(_any_match, axis=1)
