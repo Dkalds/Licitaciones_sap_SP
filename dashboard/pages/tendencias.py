@@ -8,8 +8,9 @@ import streamlit as st
 
 from dashboard.components.kpi import kpi_card
 from dashboard.components.states import empty_state, guarded_render
+from dashboard.kpi_config import KPI_FORMULAS
 from dashboard.pages._base import PageContext
-from dashboard.stats import mes_pico, yoy_delta
+from dashboard.stats import is_anomaly, kpi_sparkline_series, mes_pico, yoy_delta
 from dashboard.utils.format import fmt_eur
 
 
@@ -19,10 +20,16 @@ def render(ctx: PageContext) -> None:
 
     # ── KPIs de tendencia ─────────────────────────────────────────
     if not df.empty and df["fecha_publicacion"].notna().any():
+        # Sparklines semanales (12 últimas semanas)
+        sp_count = kpi_sparkline_series(df, metric="count", freq="W", periods=12)
+        sp_sum = kpi_sparkline_series(df, metric="sum", freq="W", periods=12)
+
         k1, k2, k3, k4 = st.columns(4)
 
         # Δ licitaciones últimos 30d vs 30d anteriores
         v_act, _v_prev, pct_n = yoy_delta(df, col="importe", agg="count", days=30)
+        # Anomaly: la última semana vs 11 anteriores
+        anom_n = is_anomaly(sp_count[-1], sp_count[:-1]) if len(sp_count) >= 4 else False
         with k1:
             st.markdown(
                 kpi_card(
@@ -31,12 +38,16 @@ def render(ctx: PageContext) -> None:
                     delta=f"{pct_n:+.1f}% vs 30d anteriores",
                     delta_up=pct_n >= 0,
                     icon="📈",
+                    sparkline=sp_count,
+                    anomaly=anom_n,
+                    tooltip=KPI_FORMULAS["licitaciones_30d"],
                 ),
                 unsafe_allow_html=True,
             )
 
         # Δ importe últimos 30d vs 30d anteriores
         v_imp, _, pct_imp = yoy_delta(df, col="importe", agg="sum", days=30)
+        anom_imp = is_anomaly(sp_sum[-1], sp_sum[:-1]) if len(sp_sum) >= 4 else False
         with k2:
             st.markdown(
                 kpi_card(
@@ -45,6 +56,9 @@ def render(ctx: PageContext) -> None:
                     delta=f"{pct_imp:+.1f}% vs 30d anteriores",
                     delta_up=pct_imp >= 0,
                     icon="💶",
+                    sparkline=sp_sum,
+                    anomaly=anom_imp,
+                    tooltip=KPI_FORMULAS["importe_30d"],
                 ),
                 unsafe_allow_html=True,
             )
@@ -59,6 +73,7 @@ def render(ctx: PageContext) -> None:
                     delta="últimos 12m vs anteriores 12m",
                     delta_up=pct_y >= 0,
                     icon="🚀",
+                    tooltip=KPI_FORMULAS["yoy_365d"],
                 ),
                 unsafe_allow_html=True,
             )
@@ -73,6 +88,7 @@ def render(ctx: PageContext) -> None:
                         mp["mes"],
                         delta=f"{fmt_eur(mp['importe'])} · {mp['n']} lics",
                         icon="🔝",
+                        tooltip=KPI_FORMULAS["mes_pico"],
                     ),
                     unsafe_allow_html=True,
                 )

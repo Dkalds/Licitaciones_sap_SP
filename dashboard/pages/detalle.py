@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 
 from dashboard.components.states import guarded_render
 from dashboard.components.tables import data_table
 from dashboard.data_loader import load_adjudicaciones
 from dashboard.pages._base import PageContext
-from dashboard.stats import risk_flags
+from dashboard.stats import risk_flags, score_oportunidad
 from dashboard.utils.export import to_excel_bytes
 from dashboard.utils.format import fmt_eur
 
@@ -17,7 +18,7 @@ from dashboard.utils.format import fmt_eur
 def render(ctx: PageContext) -> None:
     df = ctx.df
 
-    # ── Flags de riesgo ───────────────────────────────────────────────────────
+    # ── Flags de riesgo + score ──────────────────────────────────────────────
     # Calculados sobre df_full para tener contexto histórico completo (CPV P10, monopolio…)
     try:
         adj_rf = load_adjudicaciones()
@@ -31,6 +32,17 @@ def render(ctx: PageContext) -> None:
         df = df.copy()
         df["riesgo_flags"] = ""
         df["riesgo_score"] = 0
+
+    try:
+        sc = score_oportunidad(ctx.df_full, adj_rf)
+        df = df.merge(sc[["id_externo", "score", "banda", "desglose"]], on="id_externo", how="left")
+        df["score"] = df["score"].fillna(0).astype(int)
+        df["banda"] = df["banda"].fillna("—")
+    except Exception:
+        df = df.copy() if "score" not in df.columns else df
+        df["score"] = 0
+        df["banda"] = "—"
+        df["desglose"] = pd.Series([{} for _ in range(len(df))], index=df.index, dtype=object)
 
     st.subheader(f"Detalle de licitaciones ({len(df)})")
     st.caption(
@@ -55,6 +67,8 @@ def render(ctx: PageContext) -> None:
         )
 
     cols = [
+        "score",
+        "banda",
         "fecha_publicacion",
         "titulo",
         "organo_contratacion",
@@ -69,12 +83,16 @@ def render(ctx: PageContext) -> None:
         "url",
     ]
     cols = [c for c in cols if c in df.columns]
-    show = df[cols].sort_values("fecha_publicacion", ascending=False)
+    show = df[cols].sort_values("score", ascending=False)
 
     data_table(
         show,
         height=600,
         column_config={
+            "score": st.column_config.ProgressColumn(
+                "Score", format="%d", min_value=0, max_value=100, width="small"
+            ),
+            "banda": st.column_config.TextColumn("Banda", width="small"),
             "fecha_publicacion": st.column_config.DatetimeColumn("Fecha", format="DD-MM-YYYY"),
             "titulo": st.column_config.TextColumn("Título", width="large"),
             "organo_contratacion": st.column_config.TextColumn("Órgano", width="medium"),
@@ -90,9 +108,14 @@ def render(ctx: PageContext) -> None:
     )
 
     st.divider()
-    st.subheader("🔎 Vista expandida (clic para ver descripción completa)")
-    for _, row in df.sort_values("fecha_publicacion", ascending=False).head(20).iterrows():
-        with st.expander(f"💼 {fmt_eur(row['importe'])} — {row['titulo'][:90]}"):
+    st.subheader("🔎 Vista expandida (top 20 por score)")
+    for _, row in df.sort_values("score", ascending=False).head(20).iterrows():
+        score_val = int(row.get("score") or 0)
+        banda = row.get("banda") or "—"
+        header = (
+            f"{banda} · score {score_val}/100 · {fmt_eur(row['importe'])} — {row['titulo'][:80]}"
+        )
+        with st.expander(header):
             cE1, cE2 = st.columns([2, 1])
             with cE1:
                 st.markdown(f"**Órgano:** {row.get('organo_contratacion', '—')}")
@@ -108,7 +131,13 @@ def render(ctx: PageContext) -> None:
                 st.markdown("**Descripción:**")
                 st.write(row.get("descripcion") or "—")
             with cE2:
+                st.metric("Score", f"{score_val}/100", delta=banda)
                 st.metric("Importe", fmt_eur(row["importe"]))
+                desg = row.get("desglose") or {}
+                if isinstance(desg, dict) and desg:
+                    with st.popover("📊 Desglose score", use_container_width=True):
+                        for k, v in desg.items():
+                            st.markdown(f"- **{k}**: `{v:+d}`")
                 flags_txt = row.get("riesgo_flags", "")
                 if flags_txt:
                     st.markdown(f"**⚠️ Alertas:** {flags_txt}")

@@ -12,7 +12,7 @@ from dashboard.components.tables import data_table
 from dashboard.data_loader import load_adjudicaciones
 from dashboard.forecast import build_forecast_df
 from dashboard.pages._base import PageContext
-from dashboard.stats import ratio_relicitacion, risk_flags
+from dashboard.stats import ratio_relicitacion, risk_flags, score_oportunidad
 from dashboard.utils.format import fmt_eur
 
 
@@ -295,7 +295,7 @@ def render(ctx: PageContext) -> None:
     # ── Tabla de oportunidades ───────────────────────────────────
     st.subheader("Listado de oportunidades")
 
-    # Añadir flags de riesgo (silencioso si falla)
+    # Añadir flags de riesgo + score (silencioso si falla)
     oport_display = oport.copy()
     try:
         rf = risk_flags(ctx.df_full, adj_rv)
@@ -308,7 +308,40 @@ def render(ctx: PageContext) -> None:
     except Exception:
         oport_display["riesgo_flags"] = ""
 
+    try:
+        sc = score_oportunidad(ctx.df_full, adj_rv)
+        oport_display = oport_display.merge(
+            sc[["id_externo", "score", "banda"]], on="id_externo", how="left"
+        )
+        oport_display["score"] = oport_display["score"].fillna(0).astype(int)
+        oport_display["banda"] = oport_display["banda"].fillna("—")
+    except Exception:
+        oport_display["score"] = 0
+        oport_display["banda"] = "—"
+
+    # Filtro por score mínimo
+    cSc1, cSc2 = st.columns([1, 3])
+    with cSc1:
+        score_min = st.slider(
+            "Score mínimo",
+            0,
+            100,
+            0,
+            5,
+            key="pa_score_min",
+            help="Filtra oportunidades por el score calculado (0-100).",
+        )
+    if score_min > 0:
+        oport_display = oport_display[oport_display["score"] >= score_min]
+    with cSc2:
+        st.caption(
+            f"🔥 ≥75 caliente · 🟡 ≥50 atractiva · 🟦 ≥25 tibia · ⚪ descarte. "
+            f"Mostrando {len(oport_display)} oportunidades."
+        )
+
     cols_rv = [
+        "score",
+        "banda",
         "fecha_fin_estimada",
         "relicit_inicio",
         "titulo",
@@ -326,9 +359,13 @@ def render(ctx: PageContext) -> None:
         cols_rv.append("url")
     cols_rv = [c for c in cols_rv if c in oport_display.columns]
     data_table(
-        oport_display[cols_rv].sort_values("fecha_fin_estimada"),
+        oport_display[cols_rv].sort_values("score", ascending=False),
         height=480,
         column_config={
+            "score": st.column_config.ProgressColumn(
+                "Score", format="%d", min_value=0, max_value=100, width="small"
+            ),
+            "banda": st.column_config.TextColumn("Banda", width="small"),
             "fecha_fin_estimada": st.column_config.DateColumn("Fin estimado"),
             "relicit_inicio": st.column_config.DateColumn("Inicio ventana"),
             "titulo": st.column_config.TextColumn("Título", width="large"),

@@ -9,7 +9,9 @@ import streamlit as st
 from dashboard.components.kpi import kpi_card
 from dashboard.components.states import empty_state, guarded_render
 from dashboard.components.tables import data_table
+from dashboard.kpi_config import KPI_FORMULAS
 from dashboard.pages._base import PageContext
+from dashboard.stats import calidad_dato
 from db.database import connect
 from db.dlq import list_unresolved, mark_resolved
 
@@ -137,6 +139,9 @@ def render(ctx: PageContext) -> None:
             unsafe_allow_html=True,
         )
 
+    # ── Calidad del dato ───────────────────────────────────────────
+    _render_calidad_dato(ctx, last, runs)
+
     st.markdown("#### Duración e incidencias por run")
     fig = px.scatter(
         runs.head(60).sort_values("started_at"),
@@ -181,3 +186,77 @@ def render(ctx: PageContext) -> None:
             mark_resolved(int(pick))
             st.success(f"Fallo #{pick} marcado como resuelto.")
             st.rerun()
+
+
+def _render_calidad_dato(ctx: PageContext, last_run, runs) -> None:
+    """Sección con KPIs de completitud del dataset y frescura del scrape."""
+    st.markdown("#### Calidad del dato")
+    q = calidad_dato(ctx.df_full)
+
+    # Antigüedad del último scrape en horas
+    antiguedad_h = 0.0
+    if pd.notna(last_run["started_at"]):
+        hoy = pd.Timestamp.utcnow().tz_localize(None)
+        delta = hoy - last_run["started_at"]
+        antiguedad_h = float(delta.total_seconds() / 3600)
+
+    q1, q2, q3, q4, q5 = st.columns(5)
+    with q1:
+        st.markdown(
+            kpi_card(
+                "CPV válido",
+                f"{q['pct_cpv_valido']:.0f}%",
+                delta="≥8 dígitos",
+                delta_up=q["pct_cpv_valido"] >= 90,
+                icon="🏷",
+                tooltip=KPI_FORMULAS["calidad_cpv"],
+            ),
+            unsafe_allow_html=True,
+        )
+    with q2:
+        st.markdown(
+            kpi_card(
+                "Importe presente",
+                f"{q['pct_importe']:.0f}%",
+                delta_up=q["pct_importe"] >= 80,
+                icon="💶",
+                tooltip=KPI_FORMULAS["calidad_importe"],
+            ),
+            unsafe_allow_html=True,
+        )
+    with q3:
+        st.markdown(
+            kpi_card(
+                "Fecha publicación",
+                f"{q['pct_fecha_pub']:.0f}%",
+                delta_up=q["pct_fecha_pub"] >= 98,
+                icon="📅",
+                tooltip=KPI_FORMULAS["calidad_fechas"],
+            ),
+            unsafe_allow_html=True,
+        )
+    with q4:
+        st.markdown(
+            kpi_card(
+                "Título válido",
+                f"{q['pct_titulo']:.0f}%",
+                delta=">10 chars",
+                delta_up=q["pct_titulo"] >= 95,
+                icon="📝",
+                tooltip="% licitaciones con título no vacío de más de 10 caracteres.",
+            ),
+            unsafe_allow_html=True,
+        )
+    with q5:
+        st.markdown(
+            kpi_card(
+                "Antigüedad scrape",
+                f"{antiguedad_h:.1f}h",
+                delta="desde último run",
+                delta_up=antiguedad_h < 36,
+                icon="🕐",
+                tooltip=KPI_FORMULAS["antiguedad_scrape"],
+            ),
+            unsafe_allow_html=True,
+        )
+    _ = runs  # reservado por si queremos sparkline de runs/día

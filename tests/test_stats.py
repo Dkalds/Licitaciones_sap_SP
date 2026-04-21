@@ -6,23 +6,36 @@ import pandas as pd
 import pytest
 
 from dashboard.stats import (
+    calidad_dato,
+    calientes_hoy,
     ccaa_mas_activa,
     concentracion_geografica,
     funnel_estados,
     hhi_concentracion,
+    importe_medio_por_modulo,
     indice_novedad,
+    is_anomaly,
+    kpi_sparkline_series,
     kpis,
     lead_time_medio,
     media_movil,
     mes_pico,
+    pct_multi_modulo,
     pct_oferta_unica,
     por_cpv,
     por_estado,
     por_mes,
+    portfolio_match,
     ratio_relicitacion,
     risk_flags,
+    score_oportunidad,
     tasa_anulacion,
+    tasa_conversion_organo,
+    ticket_medio_por_plataforma,
+    top_modulo_yoy,
     top_organos,
+    velocity_funnel,
+    vencen_en,
     ventana_anticipacion,
     yoy_delta,
 )
@@ -632,3 +645,409 @@ class TestRatioRelicitacion:
         adj = pd.DataFrame({"licitacion_id": ["a", "b", "c"]})
         result = ratio_relicitacion(pipeline, adj)
         assert result == 100.0
+
+
+# ─── kpi_sparkline_series ───────────────────────────────────────────────────
+
+
+class TestSparklineSeries:
+    def test_empty_df(self):
+        assert kpi_sparkline_series(_empty_df()) == []
+
+    def test_returns_list_of_floats(self):
+        df = _base_df(8)
+        out = kpi_sparkline_series(df, metric="count", freq="W", periods=4)
+        assert isinstance(out, list)
+        assert all(isinstance(v, float) for v in out)
+
+    def test_sum_metric(self):
+        df = _base_df(6)
+        out = kpi_sparkline_series(df, metric="sum", freq="ME", periods=6)
+        assert len(out) <= 6
+
+    def test_unknown_metric_returns_empty(self):
+        df = _base_df(5)
+        assert kpi_sparkline_series(df, metric="zzz") == []
+
+
+# ─── is_anomaly ─────────────────────────────────────────────────────────────
+
+
+class TestAnomaly:
+    def test_not_enough_history(self):
+        assert is_anomaly(10.0, [5.0, 7.0]) is False
+
+    def test_no_anomaly_within_range(self):
+        history = [10.0, 11.0, 9.0, 10.5, 9.5, 10.2, 10.8, 9.7]
+        assert is_anomaly(10.3, history) is False
+
+    def test_anomaly_above_2_sigma(self):
+        history = [10.0, 11.0, 9.0, 10.5, 9.5, 10.2, 10.8, 9.7]
+        assert is_anomaly(50.0, history) is True
+
+    def test_constant_history_tolerance(self):
+        history = [10.0, 10.0, 10.0, 10.0]
+        assert is_anomaly(10.0, history) is False
+        assert is_anomaly(15.0, history) is True  # >10% desviación
+
+
+# ─── importe_medio_por_modulo ───────────────────────────────────────────────
+
+
+class TestImporteMedioModulo:
+    def test_empty(self):
+        df = _empty_df()
+        df["modulos"] = []
+        out = importe_medio_por_modulo(df)
+        assert out.empty
+
+    def test_groups_by_modulo(self):
+        df = _base_df(3).copy()
+        df["modulos"] = [["FI", "CO"], ["FI"], ["MM"]]
+        out = importe_medio_por_modulo(df)
+        assert set(out["modulo"].tolist()) == {"FI", "CO", "MM"}
+        fi_row = out[out["modulo"] == "FI"].iloc[0]
+        assert fi_row["n"] == 2
+
+
+# ─── top_modulo_yoy ─────────────────────────────────────────────────────────
+
+
+class TestTopModuloYoy:
+    def test_empty_returns_none(self):
+        df = _empty_df()
+        df["modulos"] = []
+        assert top_modulo_yoy(df) is None
+
+    def test_picks_highest_growth(self):
+        hoy = pd.Timestamp.utcnow()
+        rows = []
+        # 5 lics de FI en los últimos 365d, 1 en 365-730d atrás → crecimiento 400%
+        for i in range(5):
+            rows.append({"modulos": ["FI"], "fecha_publicacion": hoy - pd.Timedelta(days=30 * i)})
+        rows.append({"modulos": ["FI"], "fecha_publicacion": hoy - pd.Timedelta(days=500)})
+        # 3 lics de MM solo recientes (año actual) — crecimiento 'NUEVO'
+        for i in range(3):
+            rows.append({"modulos": ["MM"], "fecha_publicacion": hoy - pd.Timedelta(days=30 * i)})
+        df = pd.DataFrame(rows)
+        out = top_modulo_yoy(df)
+        assert out is not None
+        # MM tiene crecimiento infinito (999) así que gana sobre FI (400%)
+        assert out["modulo"] == "MM"
+
+
+# ─── pct_multi_modulo ───────────────────────────────────────────────────────
+
+
+class TestPctMultiModulo:
+    def test_empty_returns_zero(self):
+        df = _empty_df()
+        df["modulos"] = []
+        assert pct_multi_modulo(df) == 0.0
+
+    def test_half_multi(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b", "c", "d"],
+                "modulos": [["FI"], ["FI", "CO"], ["MM", "SD", "FI"], ["FI"]],
+            }
+        )
+        # 2 de 4 con ≥2 módulos → 50%
+        assert pct_multi_modulo(df) == 50.0
+
+
+# ─── ticket_medio_por_plataforma ────────────────────────────────────────────
+
+
+class TestTicketPorPlataforma:
+    def test_empty(self):
+        out = ticket_medio_por_plataforma(_empty_df())
+        assert out["s4hana"]["n"] == 0
+        assert out["ecc"]["n"] == 0
+
+    def test_detects_s4hana(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b"],
+                "titulo": ["Migración a S/4HANA de la AEAT", "Mantenimiento ECC 6.0"],
+                "descripcion": ["", ""],
+                "importe": [1_000_000, 500_000],
+            }
+        )
+        out = ticket_medio_por_plataforma(df)
+        assert out["s4hana"]["n"] == 1
+        assert out["s4hana"]["ticket_medio"] == 1_000_000
+        assert out["ecc"]["n"] == 1
+        assert out["ecc"]["ticket_medio"] == 500_000
+
+
+# ─── portfolio_match ────────────────────────────────────────────────────────
+
+
+class TestPortfolioMatch:
+    def test_empty(self):
+        assert portfolio_match(_empty_df()) == 0.0
+
+    def test_custom_keywords(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b", "c"],
+                "titulo": ["Implementación FI/CO", "Suministro papel", "Migración S/4HANA"],
+                "descripcion": ["", "", ""],
+            }
+        )
+        # 2 de 3 contienen palabras clave → ~66.7%
+        assert portfolio_match(df) == pytest.approx(100 * 2 / 3, rel=0.01)
+
+    def test_empty_keywords_returns_zero(self):
+        df = _base_df(3)
+        assert portfolio_match(df, keywords=[]) == 0.0
+
+
+# ─── calientes_hoy ──────────────────────────────────────────────────────────
+
+
+class TestCalientesHoy:
+    def test_empty_returns_empty(self):
+        out = calientes_hoy(_empty_df())
+        assert out.empty
+
+    def test_filters_by_estado_and_p75(self):
+        hoy = pd.Timestamp.utcnow()
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b", "c", "d"],
+                "estado": ["PUB", "PUB", "ADJ", "EV"],
+                "importe": [100, 500, 1000, 10000],
+                "fecha_publicacion": [hoy] * 4,
+                "cpv": ["72000000"] * 4,
+                "organo_contratacion": ["Org"] * 4,
+            }
+        )
+        out = calientes_hoy(df)
+        # Solo PUB/EV, con importe >= P75. Los PUB/EV son a(100), b(500), d(10000).
+        # P75 de [100, 500, 10000] = 5250. Solo "d" pasa.
+        assert "d" in out["id_externo"].values
+        assert "c" not in out["id_externo"].values  # ADJ excluido
+
+
+# ─── vencen_en ──────────────────────────────────────────────────────────────
+
+
+class TestVencenEn:
+    def test_empty(self):
+        assert vencen_en(_empty_df()) == 0
+
+    def test_count_in_window(self):
+        hoy = pd.Timestamp.utcnow()
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b", "c"],
+                "fecha_fin_plazo": [
+                    hoy + pd.Timedelta(hours=12),  # dentro
+                    hoy + pd.Timedelta(hours=30),  # dentro
+                    hoy + pd.Timedelta(days=5),  # fuera
+                ],
+            }
+        )
+        assert vencen_en(df, horas=48) == 2
+
+
+# ─── velocity_funnel ────────────────────────────────────────────────────────
+
+
+class TestVelocityFunnel:
+    def test_empty_no_keys(self):
+        out = velocity_funnel(_empty_df())
+        assert out == {}
+
+    def test_pub_a_fin_plazo(self):
+        hoy = pd.Timestamp.utcnow()
+        df = pd.DataFrame(
+            {
+                "fecha_publicacion": [hoy - pd.Timedelta(days=10)] * 3,
+                "fecha_fin_plazo": [
+                    hoy - pd.Timedelta(days=5),
+                    hoy - pd.Timedelta(days=3),
+                    hoy - pd.Timedelta(days=1),
+                ],
+            }
+        )
+        out = velocity_funnel(df)
+        assert "pub_a_fin_plazo" in out
+
+
+# ─── tasa_conversion_organo ─────────────────────────────────────────────────
+
+
+class TestTasaConversionOrgano:
+    def test_empty(self):
+        out = tasa_conversion_organo(_empty_df())
+        assert out.empty
+
+    def test_min_5_lics_filter(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": [f"id-{i}" for i in range(10)],
+                "organo_contratacion": ["OrgA"] * 6 + ["OrgB"] * 4,
+                "estado": ["ADJ"] * 3 + ["PUB"] * 3 + ["ADJ"] * 4,
+            }
+        )
+        out = tasa_conversion_organo(df)
+        # OrgB solo tiene 4 lics → filtrado
+        assert "OrgA" in out["organo"].values
+        assert "OrgB" not in out["organo"].values
+        orga_row = out[out["organo"] == "OrgA"].iloc[0]
+        assert orga_row["tasa"] == pytest.approx(50.0)
+
+
+# ─── calidad_dato ───────────────────────────────────────────────────────────
+
+
+class TestCalidadDato:
+    def test_empty_returns_zeros(self):
+        out = calidad_dato(_empty_df())
+        assert out["pct_cpv_valido"] == 0.0
+        assert out["pct_importe"] == 0.0
+
+    def test_completitud(self):
+        df = pd.DataFrame(
+            {
+                "id_externo": ["a", "b", "c", "d"],
+                "cpv": ["72000000", "72000000", "ABC", None],  # 2 de 4 válidos
+                "importe": [100, 200, None, 400],  # 3 de 4
+                "fecha_publicacion": pd.to_datetime(
+                    ["2024-01-01", "2024-02-01", "2024-03-01", "2024-04-01"], utc=True
+                ),
+                "titulo": ["Título largo", "OK buen título", "x", None],  # 2 de 4 válidos
+            }
+        )
+        out = calidad_dato(df)
+        assert out["pct_cpv_valido"] == 50.0
+        assert out["pct_importe"] == 75.0
+        assert out["pct_fecha_pub"] == 100.0
+        assert out["pct_titulo"] == 50.0
+
+
+class TestScoreOportunidad:
+    """Tests para score_oportunidad — suma ponderada 0-100."""
+
+    def _df_scoring(self) -> pd.DataFrame:
+        now = pd.Timestamp.utcnow()
+        return pd.DataFrame(
+            {
+                "id_externo": ["lic-1", "lic-2", "lic-3"],
+                "titulo": [
+                    "Implementación S/4HANA para ERP corporativo",
+                    "Mantenimiento FI/CO sistema existente",
+                    "Adquisición de material de oficina",
+                ],
+                "descripcion": [
+                    "migración e integración completa",
+                    "soporte anual a módulos financieros",
+                    "folios, bolígrafos y grapadoras",
+                ],
+                "importe": [2_000_000.0, 500_000.0, 10_000.0],
+                "fecha_fin_plazo": [
+                    now + pd.Timedelta(days=30),
+                    now + pd.Timedelta(days=15),
+                    now - pd.Timedelta(days=5),  # vencida
+                ],
+                "cpv": ["72200000", "72200000", "30100000"],
+                "modulos": [["FI", "CO", "MM", "SD"], ["FI", "CO"], []],
+                "modulos_str": ["FI, CO, MM, SD", "FI, CO", ""],
+            }
+        )
+
+    def test_empty_df(self):
+        out = score_oportunidad(pd.DataFrame())
+        assert out.empty
+        assert set(out.columns) == {"id_externo", "score", "banda", "desglose"}
+
+    def test_returns_expected_columns(self):
+        df = self._df_scoring()
+        out = score_oportunidad(df)
+        assert list(out.columns) == ["id_externo", "score", "banda", "desglose"]
+        assert len(out) == 3
+        assert out["score"].dtype.kind in "iu"
+
+    def test_scores_in_range_0_100(self):
+        df = self._df_scoring()
+        out = score_oportunidad(df)
+        assert (out["score"] >= 0).all()
+        assert (out["score"] <= 100).all()
+
+    def test_sap_project_scores_higher_than_office_supplies(self):
+        """Una licitación SAP grande debe puntuar más que material de oficina."""
+        df = self._df_scoring()
+        out = score_oportunidad(df).set_index("id_externo")
+        assert out.loc["lic-1", "score"] > out.loc["lic-3", "score"]
+        # lic-1 tiene S/4HANA + 4 módulos + importe alto → debe ser caliente/atractiva
+        assert out.loc["lic-1", "score"] >= 50
+
+    def test_desglose_sums_approximately_to_score(self):
+        """Los valores del desglose deben sumar (±2 por redondeos) al score."""
+        df = self._df_scoring()
+        out = score_oportunidad(df)
+        for _, row in out.iterrows():
+            suma = sum(row["desglose"].values())
+            assert abs(suma - row["score"]) <= 2, f"desglose {suma} vs score {row['score']}"
+
+    def test_banda_assigned_from_score(self):
+        df = self._df_scoring()
+        out = score_oportunidad(df)
+        for _, row in out.iterrows():
+            s = row["score"]
+            banda = row["banda"]
+            if s >= 75:
+                assert "Caliente" in banda
+            elif s >= 50:
+                assert "Atractiva" in banda
+            elif s >= 25:
+                assert "Tibia" in banda
+            else:
+                assert "Descarte" in banda
+
+    def test_custom_weights_override(self):
+        """Si se pasan pesos custom, deben aplicarse."""
+        df = self._df_scoring()
+        # Zero-out todo excepto importe → score proporcional sólo a importe
+        custom = {
+            "importe": 100.0,
+            "plazo": 0.0,
+            "modulos_sap": 0.0,
+            "portfolio_match": 0.0,
+            "s4hana_boost": 0.0,
+            "competencia": 0.0,
+            "riesgo": 0.0,
+        }
+        out = score_oportunidad(df, weights=custom).set_index("id_externo")
+        # El importe más alto debe tener el score más alto
+        assert out.loc["lic-1", "score"] >= out.loc["lic-2", "score"]
+        assert out.loc["lic-2", "score"] >= out.loc["lic-3", "score"]
+
+    def test_expired_plazo_gets_zero_plazo_points(self):
+        """Una licitación con fecha_fin_plazo en el pasado no suma puntos en plazo."""
+        df = self._df_scoring()
+        out = score_oportunidad(df).set_index("id_externo")
+        # lic-3 tiene plazo vencido → desglose["plazo"] == 0
+        assert out.loc["lic-3", "desglose"]["plazo"] == 0
+
+    def test_with_adjudicaciones_adds_competencia_signal(self):
+        """Adjudicaciones históricas con baja mediana de ofertas suman en 'competencia'."""
+        df = self._df_scoring()
+        # adj.licitacion_id debe matchear df.id_externo para resolver cpv via merge
+        adj = pd.DataFrame(
+            {
+                "licitacion_id": ["lic-1", "lic-2"],
+                "n_ofertas_recibidas": [1, 2],  # mediana=1.5 < 3 → competencia baja en CPV 72
+                "empresa_key": ["A", "B"],
+                "nombre": ["Empresa A", "Empresa B"],
+                "importe_adjudicado": [100000.0, 200000.0],
+            }
+        )
+        out = score_oportunidad(df, adj).set_index("id_externo")
+        # lic-1 y lic-2 (CPV 72) ganan punto por baja competencia
+        assert out.loc["lic-1", "desglose"]["competencia"] > 0
+        # lic-3 (CPV 30) no está en el mapa de CPVs con histórico → 0
+        assert out.loc["lic-3", "desglose"]["competencia"] == 0
