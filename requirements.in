@@ -1,7 +1,7 @@
 # Dependencias productivas — compiladas con pip-compile a requirements.txt
 requests>=2.31.0,<3
 lxml>=5.0.0,<7
-pandas>=2.1.0,<4
+pandas>=3.0.2,<4
 streamlit>=1.30.0,<2
 plotly>=5.18.0,<7
 python-dateutil>=2.8.2,<3
