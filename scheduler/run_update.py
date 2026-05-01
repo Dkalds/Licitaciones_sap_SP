@@ -4,6 +4,7 @@ Uso:
   python -m scheduler.run_update                # actualiza últimos 3 meses
   python -m scheduler.run_update --backfill 2024 1   # desde ene-2024
   python -m scheduler.run_update --months 6     # últimos 6 meses
+  python -m scheduler.run_update --daily        # feed ATOM en vivo
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from observability import (
     notify,
 )
 from scheduler.watchlist_alerts import check_and_notify
-from scraper.pipeline import backfill, update_recent
+from scraper.pipeline import backfill, update_daily, update_recent
 
 
 def main() -> int:
@@ -36,6 +37,11 @@ def main() -> int:
         type=int,
         metavar=("YEAR", "MONTH"),
         help="Backfill desde año/mes hasta hoy",
+    )
+    p.add_argument(
+        "--daily",
+        action="store_true",
+        help="Ejecutar carril diario (feed ATOM en vivo)",
     )
     p.add_argument("--verbose", "-v", action="store_true")
     p.add_argument(
@@ -53,7 +59,11 @@ def main() -> int:
     log = get_logger("run_update")
 
     try:
-        if args.backfill:
+        if args.daily:
+            result = update_daily()
+            _handle_daily_result(result, log)
+            return 0 if result.get("status") == "ok" else 1
+        elif args.backfill:
             results = backfill(args.backfill[0], args.backfill[1])
         else:
             results = update_recent(args.months)
@@ -91,6 +101,41 @@ def main() -> int:
         log.exception("watchlist_alert_error")
 
     return 0
+
+
+def _handle_daily_result(result: dict, log) -> None:
+    """Procesa resultado del carril diario: alertas watchlist + notificación."""
+    if result.get("status") != "ok":
+        return
+
+    inserted = result.get("inserted", [])
+    modified = result.get("modified", [])
+    total_nuevas = len(inserted)
+    total_modificadas = len(modified)
+
+    log.info(
+        "daily_pipeline_summary",
+        nuevas=total_nuevas,
+        modificadas=total_modificadas,
+        total_bd=count_licitaciones(),
+    )
+
+    # Disparar alertas watchlist (cubre tanto nuevas como existentes)
+    try:
+        check_and_notify()
+    except Exception:
+        log.exception("watchlist_alert_error_daily")
+
+    # Notificar si hubo modificaciones interesantes
+    if total_modificadas > 0:
+        notify(
+            AlertLevel.INFO,
+            f"Feed diario: {total_modificadas} licitación(es) modificada(s)",
+            body=f"IDs modificados: {', '.join(modified[:20])}"
+            + (f" (+{total_modificadas - 20} más)" if total_modificadas > 20 else ""),
+            nuevas=total_nuevas,
+            modificadas=total_modificadas,
+        )
 
 
 if __name__ == "__main__":

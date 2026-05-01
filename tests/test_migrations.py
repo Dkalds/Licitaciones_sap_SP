@@ -37,3 +37,6 @@ def test_expected_tables_exist():
     assert {"extraction_runs", "failed_extractions", "watchlist_cpv", "schema_version"}.issubset(
         names
     )
+    # Nuevas tablas del carril diario
+    assert "ingestion_cursors" in names
+    assert "licitaciones_history" in names

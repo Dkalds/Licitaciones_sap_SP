@@ -190,3 +190,82 @@ def notify(
     )
 
     _send_smtp(level, title, body, context, to_addr=to_addr)
+
+
+# ---------------------------------------------------------------------------
+# Alerta de lag del feed diario
+# ---------------------------------------------------------------------------
+
+_DAILY_LAG_THRESHOLD_HOURS = 8
+_DAILY_MAX_CONSECUTIVE_FAILURES = 3
+
+
+def check_daily_lag() -> None:
+    """Alerta si el cursor del feed diario tiene un lag excesivo.
+
+    Consulta ``ingestion_cursors`` para ``place_live_atom`` y compara
+    ``last_seen_updated`` con la hora actual.
+    """
+    from datetime import datetime, timedelta
+
+    from db.database import get_cursor
+
+    cursor = get_cursor("place_live_atom")
+    if cursor is None:
+        # No se ha ejecutado nunca — no alertar
+        return
+
+    last_updated = cursor.get("last_seen_updated")
+    if not last_updated:
+        return
+
+    try:
+        # Parsear timestamp ISO
+        last_dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+        now = datetime.utcnow()
+        # Comparar sin tzinfo si last_dt es naive
+        if last_dt.tzinfo is not None:
+            last_dt = last_dt.replace(tzinfo=None)
+        lag = now - last_dt
+        lag_hours = lag.total_seconds() / 3600
+    except (ValueError, TypeError):
+        log.warning("daily_lag_check_parse_error", raw=last_updated)
+        return
+
+    if lag_hours > _DAILY_LAG_THRESHOLD_HOURS:
+        notify(
+            AlertLevel.WARN,
+            f"Feed diario con lag de {lag_hours:.1f}h",
+            body=(
+                f"El último registro del feed ATOM en vivo tiene {lag_hours:.1f} horas "
+                f"de antigüedad (umbral: {_DAILY_LAG_THRESHOLD_HOURS}h)."
+            ),
+            lag_hours=round(lag_hours, 1),
+            last_seen_updated=last_updated,
+        )
+
+
+def check_daily_consecutive_failures() -> None:
+    """Alerta si los últimos N runs del carril diario fallaron todos."""
+    from db.database import connect
+
+    try:
+        with connect() as c:
+            rows = c.execute(
+                "SELECT status FROM extraction_runs "
+                "WHERE notas LIKE 'daily|%' "
+                "ORDER BY started_at DESC LIMIT ?",
+                [_DAILY_MAX_CONSECUTIVE_FAILURES],
+            ).fetchall()
+    except Exception:
+        return
+
+    if len(rows) < _DAILY_MAX_CONSECUTIVE_FAILURES:
+        return
+
+    if all(r[0] == "error" for r in rows):
+        notify(
+            AlertLevel.ERROR,
+            f"Feed diario: {_DAILY_MAX_CONSECUTIVE_FAILURES} fallos consecutivos",
+            body="Los últimos runs del carril diario han fallado todos.",
+        )
