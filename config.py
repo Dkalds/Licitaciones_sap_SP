@@ -150,3 +150,22 @@ REQUEST_DELAY_SECONDS = 1.5  # delay entre requests para no saturar
 # Límites de tamaño para descargas (defensa contra recursos excesivos)
 MAX_DOWNLOAD_SIZE_BYTES = 200 * 1024 * 1024  # 200 MB por ZIP mensual
 MAX_XML_SIZE_BYTES = 150 * 1024 * 1024  # 150 MB por fichero XML
+
+# Feed ATOM en vivo — sindicación paginada de PLACE
+PLACE_LIVE_ATOM_URL = (
+    "https://contrataciondelsectorpublico.gob.es/sindicacion/sindicacion_643/"
+    "licitacionesPerfilesContratanteCompleto3.atom"
+)
+DAILY_MAX_PAGES = 50  # tope de seguridad para paginación del feed en vivo
+
+# Campos clave para detección de cambios (historial)
+HISTORY_TRACKED_FIELDS = (
+    "importe",
+    "estado",
+    "fecha_fin",
+    "fecha_inicio",
+    "duracion_valor",
+    "duracion_unidad",
+    "titulo",
+    "descripcion",
+)

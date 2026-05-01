@@ -245,6 +245,7 @@ def parse_entry(entry) -> Licitacion | None:
         tipo_contrato=tipo,
         estado=estado_codice or s.get("estado"),
         fecha_publicacion=fecha_pub,
+        fecha_actualizacion_fuente=fecha_pub,
         url=url,
         raw_keywords=",".join(kw),
         provincia=provincia,

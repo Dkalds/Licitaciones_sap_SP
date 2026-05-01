@@ -89,6 +89,31 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE watchlist_cpv ADD COLUMN email TEXT;
         """,
     ),
+    (
+        5,
+        "ingestion_cursors_and_history",
+        """
+        CREATE TABLE IF NOT EXISTS ingestion_cursors (
+            source              TEXT PRIMARY KEY,
+            last_seen_updated   TEXT,
+            last_entry_id       TEXT,
+            etag                TEXT,
+            last_modified       TEXT,
+            updated_at          TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS licitaciones_history (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_externo      TEXT NOT NULL,
+            captured_at     TEXT NOT NULL,
+            source          TEXT,
+            snapshot_json   TEXT NOT NULL,
+            changed_fields  TEXT NOT NULL,
+            FOREIGN KEY(id_externo) REFERENCES licitaciones(id_externo)
+        );
+        CREATE INDEX IF NOT EXISTS idx_hist_externo ON licitaciones_history(id_externo, captured_at);
+        """,
+    ),
 ]
 
 

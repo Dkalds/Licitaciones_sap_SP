@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from typing import Any
 
 import libsql
 
-from config import DB_PATH, TURSO_AUTH_TOKEN, TURSO_DATABASE_URL
+from config import DB_PATH, HISTORY_TRACKED_FIELDS, TURSO_AUTH_TOKEN, TURSO_DATABASE_URL
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS licitaciones (
@@ -124,6 +126,7 @@ class Licitacion:
     fecha_inicio: str | None = None
     fecha_fin: str | None = None
     prorroga_descripcion: str | None = None
+    fecha_actualizacion_fuente: str | None = None
     fecha_extraccion: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
@@ -146,6 +149,7 @@ _NEW_COLUMNS_LICITACIONES = [
     ("fecha_inicio", "TEXT"),
     ("fecha_fin", "TEXT"),
     ("prorroga_descripcion", "TEXT"),
+    ("fecha_actualizacion_fuente", "TEXT"),
 ]
 
 
@@ -248,3 +252,170 @@ def log_extraccion(
 def count_licitaciones() -> int:
     with connect() as c:
         return c.execute("SELECT COUNT(*) FROM licitaciones").fetchone()[0]
+
+
+# ---------------------------------------------------------------------------
+# Cursor helpers (ingestion_cursors)
+# ---------------------------------------------------------------------------
+
+
+def get_cursor(source: str) -> dict[str, Any] | None:
+    """Devuelve el cursor para una fuente de ingesta, o None si no existe."""
+    with connect() as c:
+        row = c.execute(
+            "SELECT source, last_seen_updated, last_entry_id, etag, "
+            "last_modified, updated_at "
+            "FROM ingestion_cursors WHERE source = ?",
+            [source],
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "source": row[0],
+        "last_seen_updated": row[1],
+        "last_entry_id": row[2],
+        "etag": row[3],
+        "last_modified": row[4],
+        "updated_at": row[5],
+    }
+
+
+def set_cursor(
+    source: str,
+    *,
+    last_seen_updated: str | None = None,
+    last_entry_id: str | None = None,
+    etag: str | None = None,
+    last_modified: str | None = None,
+) -> None:
+    """Crea o actualiza el cursor de una fuente de ingesta."""
+    now = datetime.utcnow().isoformat()
+    with connect() as c:
+        c.execute(
+            "INSERT INTO ingestion_cursors "
+            "(source, last_seen_updated, last_entry_id, etag, last_modified, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(source) DO UPDATE SET "
+            "last_seen_updated = excluded.last_seen_updated, "
+            "last_entry_id = excluded.last_entry_id, "
+            "etag = excluded.etag, "
+            "last_modified = excluded.last_modified, "
+            "updated_at = excluded.updated_at",
+            (source, last_seen_updated, last_entry_id, etag, last_modified, now),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Upsert con historial de cambios
+# ---------------------------------------------------------------------------
+
+_HISTORY_SELECT_COLS = (
+    "id_externo, titulo, descripcion, organo_contratacion, importe, "
+    "estado, fecha_fin, fecha_inicio, duracion_valor, duracion_unidad"
+)
+
+
+@dataclass
+class UpsertResult:
+    inserted: list[str]
+    modified: list[str]
+    unchanged: list[str]
+
+    @property
+    def nuevas(self) -> int:
+        return len(self.inserted)
+
+    @property
+    def actualizadas(self) -> int:
+        return len(self.modified) + len(self.unchanged)
+
+
+def upsert_licitaciones_with_history(
+    items: Iterable[Licitacion],
+    source: str,
+) -> UpsertResult:
+    """Inserta/actualiza licitaciones y registra cambios en licitaciones_history.
+
+    Compara campos clave (HISTORY_TRACKED_FIELDS) con el registro existente.
+    Si hay diff, guarda un snapshot del estado *anterior* en licitaciones_history.
+    """
+    result = UpsertResult(inserted=[], modified=[], unchanged=[])
+
+    with connect() as c:
+        for lic in items:
+            existing = c.execute(
+                "SELECT " + _HISTORY_SELECT_COLS + " FROM licitaciones WHERE id_externo = ?",
+                [lic.id_externo],
+            ).fetchone()
+
+            data = asdict(lic)
+            keys = list(data.keys())
+            for k in keys:
+                if not _VALID_COLUMN_NAME.match(k):
+                    raise ValueError(f"Nombre de columna no válido: {k!r}")
+            vals = list(data.values())
+            cols = ", ".join(keys)
+            placeholders = ", ".join("?" for _ in keys)
+            updates = ", ".join(f"{k}=excluded.{k}" for k in keys if k != "id_externo")
+
+            if existing is not None:
+                # Construir dict del registro existente para comparar
+                col_names = [c.strip() for c in _HISTORY_SELECT_COLS.split(",")]
+                old_record = dict(zip(col_names, existing, strict=False))
+
+                # Detectar campos que cambiaron
+                changed: list[str] = []
+                for field_name in HISTORY_TRACKED_FIELDS:
+                    old_val = old_record.get(field_name)
+                    new_val = data.get(field_name)
+                    # Normalizar para comparación (ambos None → iguales)
+                    if old_val != new_val:
+                        changed.append(field_name)
+
+                if changed:
+                    # Guardar snapshot del estado ANTERIOR
+                    snapshot = json.dumps(old_record, ensure_ascii=False, default=str)
+                    # Limitar tamaño del snapshot para prevenir almacenamiento
+                    # excesivo por payloads maliciosos en el feed
+                    if len(snapshot) > 50_000:
+                        snapshot = snapshot[:50_000] + "...(truncado)"
+                    c.execute(
+                        "INSERT INTO licitaciones_history "
+                        "(id_externo, captured_at, source, snapshot_json, changed_fields) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (
+                            lic.id_externo,
+                            datetime.utcnow().isoformat(),
+                            source,
+                            snapshot,
+                            ",".join(changed),
+                        ),
+                    )
+                    result.modified.append(lic.id_externo)
+                else:
+                    result.unchanged.append(lic.id_externo)
+            else:
+                result.inserted.append(lic.id_externo)
+
+            # UPSERT (siempre, incluso si unchanged — actualiza fecha_extraccion)
+            c.execute(
+                f"INSERT INTO licitaciones ({cols}) VALUES ({placeholders}) "  # noqa: S608
+                f"ON CONFLICT(id_externo) DO UPDATE SET {updates}",
+                vals,
+            )
+
+    return result
+
+
+def get_history(id_externo: str, limit: int = 50) -> list[dict[str, Any]]:
+    """Devuelve el historial de cambios de una licitación."""
+    with connect() as c:
+        cur = c.execute(
+            "SELECT id, id_externo, captured_at, source, snapshot_json, changed_fields "
+            "FROM licitaciones_history "
+            "WHERE id_externo = ? "
+            "ORDER BY captured_at DESC LIMIT ?",
+            [id_externo, limit],
+        )
+        cols = [d[0] for d in cur.description]
+        return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]

@@ -7,10 +7,14 @@ from datetime import date
 from dateutil.relativedelta import relativedelta  # type: ignore[import-untyped]
 
 from db.database import (
+    UpsertResult,
+    get_cursor,
     init_db,
     log_extraccion,
     replace_adjudicaciones,
+    set_cursor,
     upsert_licitaciones,
+    upsert_licitaciones_with_history,
 )
 from db.dlq import record_failure
 from observability import (
@@ -25,9 +29,11 @@ from scraper.bulk_downloader import (
     download_month,
     iter_xml_files,
 )
-from scraper.codice_parser import parse_atom_bytes
+from scraper.codice_parser import parse_atom_bytes, parse_entry, parse_adjudicaciones
 
 log = get_logger(__name__)
+
+_DAILY_SOURCE = "place_live_atom"
 
 
 def process_month(year: int, month: int, *, run_id: str | None = None, force: bool = False) -> dict:
@@ -147,3 +153,163 @@ def backfill(start_year: int, start_month: int) -> list[dict]:
             cur += relativedelta(months=1)
         _summarize(results, metrics)
     return results
+
+
+# ---------------------------------------------------------------------------
+# Carril diario — feed ATOM en vivo
+# ---------------------------------------------------------------------------
+
+
+def process_daily(*, run_id: str | None = None) -> dict:
+    """Procesa el feed ATOM en vivo: pagina, filtra SAP, persiste con historial.
+
+    Returns:
+        dict con status, contadores y listas de ids insertados/modificados.
+    """
+    from scraper.atom_live import iter_live_entries
+
+    init_db()
+    fuente = _DAILY_SOURCE
+
+    # Leer cursor actual
+    cursor = get_cursor(fuente)
+    last_seen_updated = cursor["last_seen_updated"] if cursor else None
+
+    try:
+        entries, meta = iter_live_entries(last_seen_updated=last_seen_updated)
+    except Exception as e:
+        log.exception("daily_fetch_error")
+        record_failure(run_id, fuente, e, scope="fetch")
+        notify(
+            AlertLevel.ERROR,
+            "Feed diario ATOM falló al descargar",
+            body=str(e),
+        )
+        return {"status": "error_fetch", "source": fuente}
+
+    if not entries:
+        log.info("daily_no_new_entries", stopped=meta.get("stopped_reason"))
+        # Actualizar cursor etag/last_modified incluso sin entries
+        if meta.get("etag") or meta.get("last_modified"):
+            set_cursor(
+                fuente,
+                last_seen_updated=last_seen_updated,
+                etag=meta.get("etag"),
+                last_modified=meta.get("last_modified"),
+            )
+        return {
+            "status": "ok",
+            "source": fuente,
+            "sap_matches": 0,
+            "inserted": [],
+            "modified": [],
+            "unchanged": [],
+            "pages_fetched": meta["pages_fetched"],
+            "entries_seen": meta["entries_seen"],
+        }
+
+    # Parsear entries y filtrar SAP
+    sap_encontradas = []
+    adj_por_lic: dict[str, list] = {}
+    entries_error = 0
+
+    for entry_elem, updated_str in entries:
+        try:
+            lic = parse_entry(entry_elem)
+            if lic:
+                # Actualizar fecha_actualizacion_fuente con el <updated> de la entry
+                if updated_str:
+                    lic.fecha_actualizacion_fuente = updated_str
+                sap_encontradas.append(lic)
+                adj = parse_adjudicaciones(entry_elem, lic.id_externo)
+                if adj:
+                    adj_por_lic[lic.id_externo] = adj
+        except Exception as e:
+            log.warning("daily_entry_parse_error", error=str(e))
+            record_failure(run_id, fuente, e, scope="parse")
+            entries_error += 1
+
+    # Persistir con detección de cambios
+    try:
+        upsert_result: UpsertResult = upsert_licitaciones_with_history(
+            sap_encontradas, source=fuente
+        )
+    except Exception as e:
+        log.exception("daily_persist_error")
+        record_failure(run_id, fuente, e, scope="persist_licitaciones")
+        return {"status": "error_persistencia", "source": fuente}
+
+    # Adjudicaciones
+    n_adj = 0
+    for lic_id, adjs in adj_por_lic.items():
+        try:
+            n_adj += replace_adjudicaciones(lic_id, adjs)
+        except Exception as e:
+            log.exception("daily_adj_persist_error", licitacion_id=lic_id)
+            record_failure(run_id, fuente, e, scope="persist_adjudicaciones", payload_ref=lic_id)
+
+    # Actualizar cursor
+    newest = meta.get("newest_updated") or last_seen_updated
+    set_cursor(
+        fuente,
+        last_seen_updated=newest,
+        etag=meta.get("etag"),
+        last_modified=meta.get("last_modified"),
+    )
+
+    # Log de extracción
+    log_extraccion(
+        fuente=fuente,
+        nuevas=upsert_result.nuevas,
+        actualizadas=upsert_result.actualizadas,
+        total=len(sap_encontradas),
+        notas=(
+            f"SAP:{len(sap_encontradas)} adj:{n_adj} "
+            f"inserted:{upsert_result.nuevas} modified:{len(upsert_result.modified)} "
+            f"unchanged:{len(upsert_result.unchanged)} errors:{entries_error} "
+            f"pages:{meta['pages_fetched']}"
+        ),
+    )
+
+    log.info(
+        "daily_pipeline_done",
+        sap_matches=len(sap_encontradas),
+        inserted=upsert_result.nuevas,
+        modified=len(upsert_result.modified),
+        unchanged=len(upsert_result.unchanged),
+        adjudicaciones=n_adj,
+        pages=meta["pages_fetched"],
+        entries_seen=meta["entries_seen"],
+    )
+
+    return {
+        "status": "ok",
+        "source": fuente,
+        "sap_matches": len(sap_encontradas),
+        "adjudicaciones": n_adj,
+        "inserted": upsert_result.inserted,
+        "modified": upsert_result.modified,
+        "unchanged": upsert_result.unchanged,
+        "entries_error": entries_error,
+        "pages_fetched": meta["pages_fetched"],
+        "entries_seen": meta["entries_seen"],
+    }
+
+
+def update_daily() -> dict:
+    """Punto de entrada para el carril diario con observabilidad."""
+    init_db()
+    run_id = bind_run_context(entrypoint="update_daily")
+    with record_run(run_id) as metrics:
+        result = process_daily(run_id=run_id)
+        if result["status"] == "ok":
+            metrics.status = "ok"
+            metrics.licitaciones_nuevas = len(result.get("inserted", []))
+            metrics.licitaciones_actualizadas = len(result.get("modified", [])) + len(
+                result.get("unchanged", [])
+            )
+        else:
+            metrics.status = "error"
+            metrics.months_failed = 1
+        metrics.notas = f"daily|{result['status']}"
+    return result
