@@ -930,3 +930,73 @@ def score_oportunidad(
     out["desglose"] = out.apply(_desglose, axis=1)
 
     return out[["id_externo", "score", "banda", "desglose"]].reset_index(drop=True)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# KPIs por órgano
+# ────────────────────────────────────────────────────────────────────────────
+def kpis_organo(
+    df: pd.DataFrame,
+    df_adj: pd.DataFrame | None = None,
+    organo: str | None = None,
+) -> dict[str, float | str | int | None]:
+    """KPIs agregados de un órgano contratante.
+
+    Si `organo` se pasa, filtra `df` por `organo_contratacion == organo` antes
+    de calcular. Si `organo` es None, usa todo el `df` recibido (asume que ya
+    viene filtrado).
+
+    Args:
+        df: Licitaciones (con columnas: id_externo, importe, estado, organo_contratacion).
+        df_adj: Adjudicaciones para top adjudicatario y lead time (opcional).
+        organo: Nombre exacto del órgano. None = no filtrar.
+
+    Returns:
+        dict con: n_lics, importe_total, importe_medio, pct_adj, lead_time_dias,
+        top_adjudicatario (str | None), top_adj_importe (float).
+    """
+    out: dict[str, float | str | int | None] = {
+        "n_lics": 0,
+        "importe_total": 0.0,
+        "importe_medio": 0.0,
+        "pct_adj": 0.0,
+        "lead_time_dias": None,
+        "top_adjudicatario": None,
+        "top_adj_importe": 0.0,
+    }
+    if df.empty:
+        return out
+
+    sub = df[df["organo_contratacion"] == organo] if organo is not None else df
+    if sub.empty:
+        return out
+
+    n = len(sub)
+    out["n_lics"] = n
+    if "importe" in sub.columns:
+        imp_total = float(sub["importe"].sum(skipna=True))
+        out["importe_total"] = imp_total
+        # Media solo sobre licitaciones con importe declarado
+        notna_imp = sub["importe"].notna().sum()
+        out["importe_medio"] = float(imp_total / notna_imp) if notna_imp else 0.0
+
+    if "estado" in sub.columns:
+        out["pct_adj"] = float((sub["estado"] == "ADJ").sum() / n * 100)
+
+    # Lead time + top adjudicatario requieren df_adj
+    if df_adj is not None and not df_adj.empty and "licitacion_id" in df_adj.columns:
+        sub_adj = df_adj[df_adj["licitacion_id"].isin(sub["id_externo"])]
+        if not sub_adj.empty:
+            lt = lead_time_medio(sub_adj)
+            out["lead_time_dias"] = lt
+            if "nombre_canonico" in sub_adj.columns:
+                top = (
+                    sub_adj.groupby("nombre_canonico")["importe_adjudicado"]
+                    .sum()
+                    .sort_values(ascending=False)
+                )
+                if not top.empty and top.iloc[0] > 0:
+                    out["top_adjudicatario"] = str(top.index[0])
+                    out["top_adj_importe"] = float(top.iloc[0])
+
+    return out

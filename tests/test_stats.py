@@ -17,6 +17,7 @@ from dashboard.stats import (
     is_anomaly,
     kpi_sparkline_series,
     kpis,
+    kpis_organo,
     lead_time_medio,
     media_movil,
     mes_pico,
@@ -1051,3 +1052,93 @@ class TestScoreOportunidad:
         assert out.loc["lic-1", "desglose"]["competencia"] > 0
         # lic-3 (CPV 30) no está en el mapa de CPVs con histórico → 0
         assert out.loc["lic-3", "desglose"]["competencia"] == 0
+
+
+class TestKpisOrgano:
+    """Tests para kpis_organo — KPIs agregados de un órgano contratante."""
+
+    def _df_organo(self) -> pd.DataFrame:
+        """5 licitaciones del Ayto X (3 ADJ, 2 PUB) + 2 de otro órgano."""
+        return pd.DataFrame(
+            {
+                "id_externo": ["a1", "a2", "a3", "a4", "a5", "b1", "b2"],
+                "titulo": ["Lic " + str(i) for i in range(7)],
+                "organo_contratacion": [
+                    "Ayto X",
+                    "Ayto X",
+                    "Ayto X",
+                    "Ayto X",
+                    "Ayto X",
+                    "Junta Y",
+                    "Junta Y",
+                ],
+                "importe": [100_000.0, 200_000.0, 50_000.0, 300_000.0, None, 1_000.0, 2_000.0],
+                "estado": ["ADJ", "ADJ", "ADJ", "PUB", "PUB", "PUB", "PUB"],
+                "fecha_publicacion": pd.to_datetime(
+                    [
+                        "2024-01-15",
+                        "2024-02-10",
+                        "2024-03-05",
+                        "2024-04-20",
+                        "2024-05-12",
+                        "2024-06-01",
+                        "2024-06-15",
+                    ],
+                    utc=True,
+                ),
+            }
+        )
+
+    def test_empty_returns_zeros(self):
+        out = kpis_organo(pd.DataFrame(), None, organo="X")
+        assert out["n_lics"] == 0
+        assert out["importe_total"] == 0.0
+        assert out["importe_medio"] == 0.0
+        assert out["pct_adj"] == 0.0
+        assert out["lead_time_dias"] is None
+        assert out["top_adjudicatario"] is None
+
+    def test_organo_no_existe_devuelve_zeros(self):
+        df = self._df_organo()
+        out = kpis_organo(df, None, organo="No existe")
+        assert out["n_lics"] == 0
+        assert out["importe_total"] == 0.0
+
+    def test_basic_kpis_filtrando_por_organo(self):
+        df = self._df_organo()
+        out = kpis_organo(df, None, organo="Ayto X")
+        assert out["n_lics"] == 5
+        assert out["importe_total"] == 650_000.0  # 100+200+50+300, a5 es NaN
+        # Media solo sobre las 4 con importe declarado
+        assert out["importe_medio"] == 162_500.0
+        # 3 de 5 son ADJ
+        assert out["pct_adj"] == 60.0
+
+    def test_organo_none_usa_todo_el_df(self):
+        """Si organo=None se usa el df completo (asume pre-filtrado)."""
+        df = self._df_organo()
+        sub = df[df["organo_contratacion"] == "Ayto X"]
+        out = kpis_organo(sub, None, organo=None)
+        assert out["n_lics"] == 5
+        assert out["pct_adj"] == 60.0
+
+    def test_top_adjudicatario_calculado(self):
+        df = self._df_organo()
+        adj = pd.DataFrame(
+            {
+                "licitacion_id": ["a1", "a2", "a3"],
+                "nombre_canonico": ["SAP España", "SAP España", "Indra"],
+                "importe_adjudicado": [100_000.0, 200_000.0, 50_000.0],
+                "fecha_publicacion": pd.to_datetime(
+                    ["2024-01-15", "2024-02-10", "2024-03-05"], utc=True
+                ),
+                "fecha_adjudicacion": pd.to_datetime(["2024-02-15", "2024-03-10", "2024-04-05"]),
+            }
+        )
+        out = kpis_organo(df, adj, organo="Ayto X")
+        # SAP España suma 300k, Indra 50k → SAP gana
+        assert out["top_adjudicatario"] == "SAP España"
+        assert out["top_adj_importe"] == 300_000.0
+        # Lead time mediano de las 3 adj (cada una ~30 días)
+        assert out["lead_time_dias"] is not None
+        assert 25 <= out["lead_time_dias"] <= 35
