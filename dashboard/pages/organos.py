@@ -276,6 +276,21 @@ def render(ctx: PageContext) -> None:
         sub_sorted["banda"] = "—"
 
     st.caption("Ordenado por score de oportunidad (las más calientes arriba). Top 30.")
+
+    # Enriquecer con datos de adjudicación (empresa, baja, fecha)
+    if not sub_adj.empty:
+        adj_best = (
+            sub_adj.sort_values("importe_adjudicado", ascending=False)
+            .drop_duplicates(subset=["licitacion_id"], keep="first")
+            [["licitacion_id", "nombre_canonico", "baja_pct", "fecha_adjudicacion"]]
+        )
+        sub_sorted = sub_sorted.merge(
+            adj_best,
+            left_on="id_externo",
+            right_on="licitacion_id",
+            how="left",
+        )
+
     for _, row in sub_sorted.head(30).iterrows():
         meta_parts = [
             str(row.get("estado_desc") or "—"),
@@ -284,6 +299,15 @@ def render(ctx: PageContext) -> None:
         ]
         if row.get("ccaa"):
             meta_parts.append(str(row.get("ccaa")))
+        empresa = row.get("nombre_canonico")
+        baja = row.get("baja_pct")
+        fecha_adj = row.get("fecha_adjudicacion")
+        if empresa:
+            meta_parts.append(f"🏢 {empresa}")
+        if pd.notna(baja):
+            meta_parts.append(f"📉 {baja:.1f}% baja")
+        if pd.notna(fecha_adj):
+            meta_parts.append(f"📅 {pd.Timestamp(fecha_adj).strftime('%d/%m/%Y')}")
         top_card(
             amount=fmt_eur(row["importe"]),
             title=str(row["titulo"]),
