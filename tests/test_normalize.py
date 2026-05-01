@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dashboard.normalize import normalize_company, normalize_nif
+from dashboard.normalize import normalize_company, normalize_nif, parse_ute_members
 
 
 class TestNormalizeCompany:
@@ -95,3 +95,39 @@ class TestNormalizeNif:
 
     def test_solo_separadores_devuelve_none(self):
         assert normalize_nif("- . -") is None
+
+
+class TestParseUteMembers:
+    def test_no_es_ute(self):
+        assert parse_ute_members("Empresa Ejemplo, S.A.") == []
+
+    def test_none(self):
+        assert parse_ute_members(None) == []
+
+    def test_ute_dos_miembros_guion(self):
+        assert parse_ute_members("UTE SEIDOR SOLUTIONS SL - SBS SEIDOR SL") == [
+            "SEIDOR SOLUTIONS",
+            "SBS SEIDOR",
+        ]
+
+    def test_ute_puntos(self):
+        assert parse_ute_members("U.T.E. NTT DATA SPAIN, S.L.U. - NTT DATA SPAIN INFRA S.L.U.") == [
+            "NTT DATA SPAIN",
+            "NTT DATA SPAIN INFRA",
+        ]
+
+    def test_ute_compacto_guion(self):
+        # Sin espacios alrededor del guion no se puede separar con seguridad
+        # (podría ser un nombre tipo "Coca-Cola"); se devuelve como un único miembro.
+        assert parse_ute_members("UTE ZEUS-EXETECO") == ["ZEUS EXETECO"]
+
+    def test_ute_con_lote_paren(self):
+        members = parse_ute_members("Ute Vass T4s (L5 Sda 25/2022)")
+        assert members and all("(" not in m for m in members)
+
+    def test_ute_y_separador(self):
+        assert parse_ute_members("UTE Capgemini Y Babel") == ["CAPGEMINI", "BABEL"]
+
+    def test_dedupe(self):
+        assert parse_ute_members("UTE EMPRESA - EMPRESA SA") == ["EMPRESA"]
+
