@@ -1,12 +1,19 @@
-"""Página Órganos — top órganos y treemap."""
+"""Página Órganos — top órganos, treemap y drill-down por órgano."""
 
 from __future__ import annotations
 
+import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from dashboard.components.cards import top_card
+from dashboard.components.kpi import kpi_card
 from dashboard.components.states import guarded_render
+from dashboard.components.tables import data_table
+from dashboard.data_loader import load_adjudicaciones
 from dashboard.pages._base import PageContext
+from dashboard.stats import kpis_organo, score_oportunidad
+from dashboard.utils.format import fmt_eur
 
 
 @guarded_render
@@ -74,3 +81,213 @@ def render(ctx: PageContext) -> None:
         )
         fig.update_layout(height=600, margin=dict(t=20, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
+
+    # ── Explorar órgano ─────────────────────────────────────────────────────
+    st.divider()
+    st.subheader("🔎 Explorar órgano")
+    st.caption(
+        "Busca un órgano por nombre, selecciónalo y revisa su pipeline, "
+        "adjudicatarios históricos y estacionalidad."
+    )
+
+    organo_q = st.text_input(
+        "Filtrar por nombre del órgano",
+        placeholder="Ej: AYUNTAMIENTO MADRID, JUNTA, MUTUA…",
+        key="org_search",
+    )
+    ranking = (
+        df.groupby("organo_contratacion")
+        .agg(
+            n=("id_externo", "count"),
+            importe=("importe", "sum"),
+        )
+        .reset_index()
+        .sort_values("importe", ascending=False)
+    )
+    if organo_q:
+        ranking = ranking[
+            ranking["organo_contratacion"].str.contains(organo_q, case=False, na=False)
+        ]
+
+    st.caption(f"📋 {len(ranking)} órganos coinciden — mostrando top 50 por importe.")
+    data_table(
+        ranking.head(50),
+        height=300,
+        column_config={
+            "organo_contratacion": st.column_config.TextColumn("Órgano", width="large"),
+            "n": st.column_config.NumberColumn("Licitaciones"),
+            "importe": st.column_config.NumberColumn("Importe €", format="%.0f €"),
+        },
+    )
+
+    # ── Selector + drill-down ─────────────────────────────────────────────
+    opciones = ranking.head(200)["organo_contratacion"].dropna().tolist()
+    organo_sel = st.selectbox(
+        "Selecciona un órgano para ver sus contratos",
+        options=[None, *opciones],
+        format_func=lambda x: "— elige un órgano —" if x is None else str(x),
+        key="org_drill",
+    )
+
+    if not organo_sel:
+        return
+
+    sub = df[df["organo_contratacion"] == organo_sel].copy()
+    if sub.empty:
+        st.info("Sin datos para este órgano en el rango filtrado.")
+        return
+
+    adj_full = load_adjudicaciones()
+    sub_adj = (
+        adj_full[adj_full["licitacion_id"].isin(sub["id_externo"])]
+        if not adj_full.empty
+        else pd.DataFrame()
+    )
+
+    # ── KPIs del órgano ───────────────────────────────────────────────────
+    k = kpis_organo(sub, sub_adj, organo=None)  # sub ya está filtrado
+    n_lics = int(k["n_lics"] or 0)
+    imp_total = float(k["importe_total"] or 0.0)
+    imp_medio = float(k["importe_medio"] or 0.0)
+    pct_adj = float(k["pct_adj"] or 0.0)
+    lt_raw = k["lead_time_dias"]
+    top_adj = k["top_adjudicatario"]
+    top_adj_imp = float(k["top_adj_importe"] or 0.0)
+
+    cK1, cK2, cK3, cK4 = st.columns(4)
+    cK1.markdown(
+        kpi_card("Licitaciones", f"{n_lics:,}", icon="📋"),
+        unsafe_allow_html=True,
+    )
+    cK2.markdown(
+        kpi_card(
+            "Importe total",
+            fmt_eur(imp_total),
+            delta=f"medio {fmt_eur(imp_medio)}",
+            icon="💰",
+        ),
+        unsafe_allow_html=True,
+    )
+    cK3.markdown(
+        kpi_card(
+            "% Adjudicadas",
+            f"{pct_adj:.0f}%",
+            delta="del total del órgano",
+            delta_up=pct_adj >= 50,
+            icon="✅",
+        ),
+        unsafe_allow_html=True,
+    )
+    lt_txt = f"{float(lt_raw):.0f} d" if isinstance(lt_raw, (int, float)) else "—"
+    cK4.markdown(
+        kpi_card("Lead time mediano", lt_txt, delta="pub → adj", icon="⏱"),
+        unsafe_allow_html=True,
+    )
+
+    if top_adj:
+        st.caption(f"🏆 **Top adjudicatario histórico:** {top_adj} ({fmt_eur(top_adj_imp)})")
+
+    # ── Mini-charts: top adjudicatarios + estacionalidad ──────────────────
+    cC1, cC2 = st.columns(2)
+    with cC1:
+        st.markdown("**Top 10 adjudicatarios**")
+        if not sub_adj.empty and "nombre_canonico" in sub_adj.columns:
+            top_adj_df = (
+                sub_adj.groupby("nombre_canonico")["importe_adjudicado"]
+                .sum()
+                .nlargest(10)
+                .reset_index()
+            )
+            if not top_adj_df.empty:
+                fig = px.bar(
+                    top_adj_df.sort_values("importe_adjudicado"),
+                    x="importe_adjudicado",
+                    y="nombre_canonico",
+                    orientation="h",
+                    template=ctx.plotly_template,
+                    color="importe_adjudicado",
+                    color_continuous_scale="Greens",
+                    labels={"importe_adjudicado": "Importe €", "nombre_canonico": ""},
+                )
+                fig.update_layout(
+                    height=320,
+                    showlegend=False,
+                    coloraxis_showscale=False,
+                    margin=dict(t=10, b=10, l=10, r=10),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Sin adjudicaciones registradas para este órgano.")
+        else:
+            st.info("Sin adjudicaciones registradas para este órgano.")
+
+    with cC2:
+        st.markdown("**Estacionalidad mensual (histórica)**")
+        if "fecha_publicacion" in sub.columns and sub["fecha_publicacion"].notna().any():
+            season = (
+                sub.dropna(subset=["fecha_publicacion"])
+                .assign(mes=lambda x: x["fecha_publicacion"].dt.month)
+                .groupby("mes")
+                .size()
+                .reset_index(name="n")
+            )
+            mes_nombres = {
+                1: "Ene",
+                2: "Feb",
+                3: "Mar",
+                4: "Abr",
+                5: "May",
+                6: "Jun",
+                7: "Jul",
+                8: "Ago",
+                9: "Sep",
+                10: "Oct",
+                11: "Nov",
+                12: "Dic",
+            }
+            season["mes_label"] = season["mes"].map(mes_nombres)
+            # Asegurar los 12 meses presentes (huecos = 0)
+            full = pd.DataFrame({"mes": range(1, 13)})
+            full["mes_label"] = full["mes"].map(mes_nombres)
+            full = full.merge(season[["mes", "n"]], on="mes", how="left").fillna({"n": 0})
+            fig = px.bar(
+                full,
+                x="mes_label",
+                y="n",
+                template=ctx.plotly_template,
+                color_discrete_sequence=["#86BC25"],
+                labels={"mes_label": "", "n": "Licitaciones"},
+            )
+            fig.update_layout(height=320, margin=dict(t=10, b=10, l=10, r=10))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Sin fechas válidas para calcular estacionalidad.")
+
+    # ── Listado de licitaciones del órgano (ordenado por score) ──────────
+    st.subheader(f"Licitaciones de {organo_sel} ({len(sub)})")
+    try:
+        sc = score_oportunidad(sub, sub_adj)
+        sub_sorted = sub.merge(sc[["id_externo", "score", "banda"]], on="id_externo", how="left")
+        sub_sorted["score"] = sub_sorted["score"].fillna(0).astype(int)
+        sub_sorted = sub_sorted.sort_values("score", ascending=False)
+    except Exception:
+        sub_sorted = sub.copy()
+        sub_sorted["score"] = 0
+        sub_sorted["banda"] = "—"
+
+    st.caption("Ordenado por score de oportunidad (las más calientes arriba). Top 30.")
+    for _, row in sub_sorted.head(30).iterrows():
+        meta_parts = [
+            str(row.get("estado_desc") or "—"),
+            str(row.get("banda") or "—"),
+            f"score {int(row.get('score') or 0)}/100",
+        ]
+        if row.get("ccaa"):
+            meta_parts.append(str(row.get("ccaa")))
+        top_card(
+            amount=fmt_eur(row["importe"]),
+            title=str(row["titulo"]),
+            meta=" · ".join(meta_parts),
+            url=row.get("url"),
+            highlight=str(row.get("modulos_str") or "—"),
+        )
