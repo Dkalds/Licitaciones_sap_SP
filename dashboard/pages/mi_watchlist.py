@@ -1,7 +1,7 @@
 """Página Mi Watchlist — seguimiento personalizado de CPVs / keywords.
 
 Identificamos al usuario por un ``user_key`` derivado del password configurado
-(hash local, no PII). Para entornos sin password, se usa la clave ``default``.
+(hash local, no PII). Con OAuth, se vincula al ``user_id`` de la tabla ``users``.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import os
 import pandas as pd
 import streamlit as st
 
+from dashboard.auth import get_current_user
 from dashboard.components.states import empty_state, guarded_render
 from dashboard.components.tables import data_table
 from dashboard.pages._base import PageContext
@@ -20,7 +21,6 @@ from db.watchlist import (
     WatchlistEntry,
     add_entry,
     list_entries,
-    matches_licitacion,
     remove_entry,
 )
 
@@ -30,8 +30,17 @@ def _user_key() -> str:
 
     Usa el password del dashboard o el nombre de host; nunca el valor en claro.
     """
-    seed = os.environ.get("DASHBOARD_PASSWORD", "") or os.environ.get("COMPUTERNAME", "default")
+    from config import DASHBOARD_PASSWORD
+
+    seed = DASHBOARD_PASSWORD or os.environ.get("COMPUTERNAME", "default")
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
+
+
+def _get_user_context() -> tuple[str, int | None]:
+    """Devuelve (user_key, user_id) del usuario actual."""
+    user = get_current_user()
+    user_id = user.get("user_id") if user else None
+    return _user_key(), user_id
 
 
 @guarded_render
@@ -42,8 +51,8 @@ def render(ctx: PageContext) -> None:
         "alertas cuando aparezcan licitaciones que encajen."
     )
 
-    user_key = _user_key()
-    entries = list_entries(user_key)
+    user_key, user_id = _get_user_context()
+    entries = list_entries(user_key, user_id=user_id)
 
     with st.expander("➕ Añadir entrada", expanded=not entries):  # noqa: RUF001
         col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
@@ -78,6 +87,7 @@ def render(ctx: PageContext) -> None:
                         min_importe=float(imp) if imp else None,
                         ccaa=None if ccaa == "(todas)" else ccaa,
                         email=email.strip() or None,
+                        user_id=user_id,
                     )
                 )
                 st.success("Entrada guardada.")
@@ -109,12 +119,29 @@ def render(ctx: PageContext) -> None:
     if df.empty:
         return
 
-    def _any_match(row: pd.Series) -> bool:
-        record = {str(k): v for k, v in row.to_dict().items()}
-        return any(matches_licitacion(e, record) for e in entries)
+    # Vectorized matching — one boolean mask per entry, OR-combined
+    combined_mask = pd.Series(False, index=df.index)
+    cpv_col = df["cpv"].fillna("").astype(str)
+    titulo_col = df["titulo"].fillna("").astype(str).str.lower()
+    desc_col = df["descripcion"].fillna("").astype(str).str.lower() if "descripcion" in df.columns else pd.Series("", index=df.index)
+    text_col = titulo_col + " " + desc_col
+    importe_col = pd.to_numeric(df["importe"], errors="coerce").fillna(0)
+    ccaa_col = df["ccaa"].fillna("").astype(str)
 
-    mask = df.apply(_any_match, axis=1)
-    matches = df[mask]
+    for e in entries:
+        entry_mask = pd.Series(True, index=df.index)
+        if e.get("cpv_prefix"):
+            entry_mask &= cpv_col.str.startswith(e["cpv_prefix"])
+        kw = (e.get("keyword") or "").strip().lower()
+        if kw:
+            entry_mask &= text_col.str.contains(kw, na=False, regex=False)
+        if e.get("min_importe") is not None:
+            entry_mask &= importe_col >= float(e["min_importe"])
+        if e.get("ccaa"):
+            entry_mask &= ccaa_col == e["ccaa"]
+        combined_mask |= entry_mask
+
+    matches = df[combined_mask]
 
     if matches.empty:
         empty_state(

@@ -20,6 +20,8 @@ def tmp_db(monkeypatch, tmp_path):
     importlib.reload(cfg)
     import db.database as db_mod
 
+    # Cerrar conexión del pool antes de recargar (apunta a BD anterior)
+    db_mod.close_pool()
     importlib.reload(db_mod)
     import db.migrations as mig
 
@@ -32,4 +34,5 @@ def tmp_db(monkeypatch, tmp_path):
     importlib.reload(wl)
 
     db_mod.init_db()
-    return db_mod, tmp_path
+    yield db_mod, tmp_path
+    db_mod.close_pool()

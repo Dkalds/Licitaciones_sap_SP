@@ -15,7 +15,6 @@ Cuando ``json_logs=False`` (interactivo), imprime en color para lectura humana.
 from __future__ import annotations
 
 import logging
-import os
 import sys
 import uuid
 from typing import Any
@@ -30,9 +29,12 @@ from structlog.contextvars import (
 
 def _detect_json_default() -> bool:
     """Por defecto JSON en entornos no-TTY (CI, Docker, systemd)."""
-    if os.environ.get("LOG_FORMAT", "").lower() == "json":
+    from config import LOG_FORMAT
+
+    fmt = LOG_FORMAT.lower()
+    if fmt == "json":
         return True
-    if os.environ.get("LOG_FORMAT", "").lower() == "console":
+    if fmt == "console":
         return False
     return not sys.stderr.isatty()
 
@@ -80,7 +82,7 @@ def configure_logging(
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
-    return structlog.get_logger(name)
+    return structlog.get_logger(name)  # type: ignore[no-any-return]
 
 
 def bind_run_context(**kwargs: Any) -> str:

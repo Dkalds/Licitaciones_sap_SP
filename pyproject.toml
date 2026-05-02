@@ -38,17 +38,19 @@ warn_unused_ignores = false
 warn_return_any = false
 disallow_untyped_defs = false
 
-# Módulos nuevos / de core con tipado más estricto
+# Módulos con tipado estricto validado
 [[tool.mypy.overrides]]
 module = [
+    "config",
+    "db.*",
     "observability.*",
-    "db.dlq",
-    "db.migrations",
-    "db.watchlist",
+    "dashboard.utils.*",
     "scraper.resilience",
+    "scraper.filters",
 ]
 disallow_untyped_defs = true
 warn_unused_ignores = true
+warn_return_any = true
 no_implicit_optional = true
 
 # Dependencias sin stubs útiles

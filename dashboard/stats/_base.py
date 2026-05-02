@@ -1093,3 +1093,32 @@ def dedupe_reaperturas(
     result["oportunidad_id"] = oportunidad_id
     result["oportunidad_version"] = oportunidad_version
     return result
+
+
+# ── Comparador de periodos ──────────────────────────────────────────────
+
+
+def compare_periods(
+    df: pd.DataFrame,
+    range_a: tuple[pd.Timestamp, pd.Timestamp],
+    range_b: tuple[pd.Timestamp, pd.Timestamp],
+) -> dict[str, dict[str, float]]:
+    """Compara métricas clave entre dos rangos de fechas.
+
+    Returns dict con claves: total, importe_total, importe_medio, organos.
+    Cada una contiene: {a, b, delta_pct}.
+    """
+    col = "fecha_publicacion"
+    df_a = df[(df[col] >= range_a[0]) & (df[col] <= range_a[1])]
+    df_b = df[(df[col] >= range_b[0]) & (df[col] <= range_b[1])]
+
+    k_a = kpis(df_a)
+    k_b = kpis(df_b)
+
+    result: dict[str, dict[str, float]] = {}
+    for key in ("total", "importe_total", "importe_medio", "organos"):
+        va = float(k_a[key])
+        vb = float(k_b[key])
+        pct = ((vb - va) / va * 100) if va else 0.0
+        result[key] = {"a": va, "b": vb, "delta_pct": pct}
+    return result

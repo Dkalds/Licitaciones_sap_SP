@@ -43,7 +43,7 @@ def render(ctx: PageContext) -> None:
     runs["duration_s"] = (runs["duration_ms"] / 1000).round(1)
 
     last = runs.iloc[0]
-    hoy = pd.Timestamp.utcnow().tz_localize(None)
+    hoy = pd.Timestamp.now("UTC").tz_localize(None)
     last7 = runs[runs["started_at"] >= (hoy - pd.Timedelta(days=7))]
     last30 = runs[runs["started_at"] >= (hoy - pd.Timedelta(days=30))]
     prev_week = runs[
@@ -83,7 +83,7 @@ def render(ctx: PageContext) -> None:
             kpi_card(
                 "Éxito 30d",
                 f"{ok_rate_30:.0f}%",
-                icon="📅",
+                icon="�",
                 delta=f"{len(last30)} runs",
                 delta_up=ok_rate_30 >= 90,
             ),
@@ -196,7 +196,7 @@ def _render_calidad_dato(ctx: PageContext, last_run, runs) -> None:
     # Antigüedad del último scrape en horas
     antiguedad_h = 0.0
     if pd.notna(last_run["started_at"]):
-        hoy = pd.Timestamp.utcnow().tz_localize(None)
+        hoy = pd.Timestamp.now("UTC").tz_localize(None)
         delta = hoy - last_run["started_at"]
         antiguedad_h = float(delta.total_seconds() / 3600)
 

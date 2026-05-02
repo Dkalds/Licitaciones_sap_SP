@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
-from datetime import datetime, timedelta
+import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -32,20 +34,37 @@ log = get_logger(__name__)
 def run_check(freshness_hours: int = 36, dlq_threshold: int = 50) -> dict:
     init_db()
     status = "healthy"
+    checks: list[dict[str, object]] = []
     warnings: list[str] = []
     errors: list[str] = []
     info: dict[str, object] = {}
 
+    # --- Métricas de infraestructura ---
+    from config import DATA_DIR, DB_PATH
+
+    db_path = Path(DB_PATH)
+    info["db_size_bytes"] = db_path.stat().st_size if db_path.exists() else 0
+    data_dir = Path(DATA_DIR)
+    try:
+        info["data_dir_free_bytes"] = shutil.disk_usage(data_dir).free
+    except OSError:
+        info["data_dir_free_bytes"] = None
+
     with connect() as c:
+        t0 = time.monotonic()
         total = c.execute("SELECT COUNT(*) FROM licitaciones").fetchone()[0]
+        info["last_query_ms"] = round((time.monotonic() - t0) * 1000, 2)
         info["licitaciones_total"] = int(total)
+        checks.append({"name": "db_readable", "ok": True})
 
         last_run = c.execute(
             "SELECT run_id, started_at, status, months_ok, months_failed "
             "FROM extraction_runs ORDER BY started_at DESC LIMIT 1"
         ).fetchone()
+        run_ok = True
         if last_run is None:
             errors.append("sin_runs_registrados")
+            run_ok = False
         else:
             info["last_run"] = {
                 "run_id": last_run[0],
@@ -56,23 +75,28 @@ def run_check(freshness_hours: int = 36, dlq_threshold: int = 50) -> dict:
             }
             try:
                 started = datetime.fromisoformat(last_run[1])
-                if started.tzinfo is not None:
-                    started = started.replace(tzinfo=None)
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
             except (ValueError, TypeError):
-                started = datetime.utcnow() - timedelta(days=365)
-            age = datetime.utcnow() - started
+                started = datetime.now(timezone.utc) - timedelta(days=365)
+            age = datetime.now(timezone.utc) - started
             info["last_run_age_hours"] = round(age.total_seconds() / 3600, 1)
             if age > timedelta(hours=freshness_hours):
                 warnings.append(f"last_run_stale:{info['last_run_age_hours']}h")
+                run_ok = False
             if last_run[2] == "error":
                 errors.append(f"last_run_failed:{last_run[0]}")
+                run_ok = False
+        checks.append({"name": "last_run_fresh", "ok": run_ok})
 
         dlq_count = c.execute(
             "SELECT COUNT(*) FROM failed_extractions WHERE resolved_at IS NULL"
         ).fetchone()[0]
         info["dlq_unresolved"] = int(dlq_count)
-        if dlq_count >= dlq_threshold:
+        dlq_ok = dlq_count < dlq_threshold
+        if not dlq_ok:
             warnings.append(f"dlq_above_threshold:{dlq_count}")
+        checks.append({"name": "dlq_below_threshold", "ok": dlq_ok})
 
     if errors:
         status = "critical"
@@ -81,7 +105,8 @@ def run_check(freshness_hours: int = 36, dlq_threshold: int = 50) -> dict:
 
     return {
         "status": status,
-        "checked_at": datetime.utcnow().isoformat(),
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checks": checks,
         "warnings": warnings,
         "errors": errors,
         "info": info,

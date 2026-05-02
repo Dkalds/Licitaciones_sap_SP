@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import json
-import re
+import threading
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from dataclasses import asdict, dataclass, field, fields
+from datetime import datetime, timezone
 from typing import Any
+
+
+def now_utc() -> datetime:
+    """Devuelve datetime actual en UTC (aware). Reemplaza datetime.utcnow()."""
+    return datetime.now(timezone.utc)
+
+
+def now_utc_iso() -> str:
+    """ISO 8601 del instante actual en UTC."""
+    return now_utc().isoformat()
 
 import libsql
 
@@ -100,7 +110,7 @@ class Adjudicacion:
     oferta_maxima: float | None = None
     result_code: str | None = None
     result_description: str | None = None
-    fecha_extraccion: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    fecha_extraccion: str = field(default_factory=now_utc_iso)
 
 
 @dataclass
@@ -127,46 +137,58 @@ class Licitacion:
     fecha_fin: str | None = None
     prorroga_descripcion: str | None = None
     fecha_actualizacion_fuente: str | None = None
-    fecha_extraccion: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    fecha_extraccion: str = field(default_factory=now_utc_iso)
 
 
-@contextmanager
-def connect() -> Iterator:
+# --- Pre-computed SQL fragments (avoid per-row recalculation) ---------------
+_LIC_KEYS = tuple(f.name for f in fields(Licitacion))
+_LIC_COLS = ", ".join(_LIC_KEYS)
+_LIC_PLACEHOLDERS = ", ".join("?" for _ in _LIC_KEYS)
+_LIC_UPDATES = ", ".join(f"{k}=excluded.{k}" for k in _LIC_KEYS if k != "id_externo")
+
+_ADJ_KEYS = tuple(f.name for f in fields(Adjudicacion))
+_ADJ_COLS = ", ".join(_ADJ_KEYS)
+_ADJ_PLACEHOLDERS = ", ".join("?" for _ in _ADJ_KEYS)
+
+
+# ── Thread-local connection pool ────────────────────────────────────────────
+_local = threading.local()
+
+
+def _get_conn() -> Any:
+    """Devuelve una conexión reutilizada por hilo (thread-local pool)."""
+    conn = getattr(_local, "conn", None)
+    if conn is not None:
+        return conn
     if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN:
         conn = libsql.connect(TURSO_DATABASE_URL, auth_token=TURSO_AUTH_TOKEN)
     else:
         conn = libsql.connect(str(DB_PATH))
+    _local.conn = conn
+    return conn
+
+
+def close_pool() -> None:
+    """Cierra la conexión del hilo actual (para tests / shutdown)."""
+    conn = getattr(_local, "conn", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+        _local.conn = None
+
+
+@contextmanager
+def connect() -> Iterator[Any]:
+    conn = _get_conn()
     try:
         yield conn
         conn.commit()
     except Exception:
         conn.rollback()
         raise
-    finally:
-        conn.close()
 
-
-_NEW_COLUMNS_LICITACIONES = [
-    ("duracion_valor", "REAL"),
-    ("duracion_unidad", "TEXT"),
-    ("fecha_inicio", "TEXT"),
-    ("fecha_fin", "TEXT"),
-    ("prorroga_descripcion", "TEXT"),
-    ("fecha_actualizacion_fuente", "TEXT"),
-]
-
-
-_VALID_COLUMN_NAME = re.compile(r"^[a-zA-Z_]\w*$")
-
-
-def _migrate(conn) -> None:
-    """Aplica ALTER TABLE ADD COLUMN para BDs preexistentes."""
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(licitaciones)").fetchall()}
-    for name, ctype in _NEW_COLUMNS_LICITACIONES:
-        if not _VALID_COLUMN_NAME.match(name):
-            raise ValueError(f"Nombre de columna no válido: {name!r}")
-        if name not in cols:
-            conn.execute(f"ALTER TABLE licitaciones ADD COLUMN {name} {ctype}")
 
 
 def init_db() -> None:
@@ -179,7 +201,6 @@ def init_db() -> None:
             stmt = stmt.strip()
             if stmt:
                 c.execute(stmt)
-        _migrate(c)
         apply_pending(c)
 
 
@@ -194,18 +215,11 @@ def upsert_licitaciones(items: Iterable[Licitacion]) -> tuple[int, int]:
                 [lic.id_externo],
             ).fetchone()
             data = asdict(lic)
-            keys = list(data.keys())
-            for k in keys:
-                if not _VALID_COLUMN_NAME.match(k):
-                    raise ValueError(f"Nombre de columna no válido: {k!r}")
-            vals = list(data.values())
-            cols = ", ".join(keys)
-            placeholders = ", ".join("?" for _ in keys)
-            updates = ", ".join(f"{k}=excluded.{k}" for k in keys if k != "id_externo")
+            vals = [data[k] for k in _LIC_KEYS]
             # Column names come from dataclass fields (controlled code) — safe
             c.execute(  # noqa: RUF100, S608
-                f"INSERT INTO licitaciones ({cols}) VALUES ({placeholders}) "  # noqa: S608
-                f"ON CONFLICT(id_externo) DO UPDATE SET {updates}",
+                f"INSERT INTO licitaciones ({_LIC_COLS}) VALUES ({_LIC_PLACEHOLDERS}) "  # noqa: S608
+                f"ON CONFLICT(id_externo) DO UPDATE SET {_LIC_UPDATES}",
                 vals,
             )
             if existing:
@@ -223,17 +237,11 @@ def replace_adjudicaciones(licitacion_id: str, items: Iterable[Adjudicacion]) ->
         n = 0
         for adj in items:
             data = asdict(adj)
-            keys = list(data.keys())
-            for k in keys:
-                if not _VALID_COLUMN_NAME.match(k):
-                    raise ValueError(f"Nombre de columna no válido: {k!r}")
-            vals = list(data.values())
-            cols = ", ".join(keys)
-            placeholders = ", ".join("?" for _ in keys)
+            vals = [data[k] for k in _ADJ_KEYS]
             # Column names come from dataclass fields (controlled code) — safe
             c.execute(  # noqa: RUF100, S608
-                f"INSERT OR IGNORE INTO adjudicaciones ({cols}) "  # noqa: S608
-                f"VALUES ({placeholders})",
+                f"INSERT OR IGNORE INTO adjudicaciones ({_ADJ_COLS}) "  # noqa: S608
+                f"VALUES ({_ADJ_PLACEHOLDERS})",
                 vals,
             )
             n += 1
@@ -248,13 +256,14 @@ def log_extraccion(
             "INSERT INTO extracciones "
             "(fecha, fuente, nuevas, actualizadas, total_revisadas, notas) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (datetime.utcnow().isoformat(), fuente, nuevas, actualizadas, total, notas),
+            (now_utc_iso(), fuente, nuevas, actualizadas, total, notas),
         )
 
 
 def count_licitaciones() -> int:
     with connect() as c:
-        return c.execute("SELECT COUNT(*) FROM licitaciones").fetchone()[0]
+        row = c.execute("SELECT COUNT(*) FROM licitaciones").fetchone()
+        return int(row[0])
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +301,7 @@ def set_cursor(
     last_modified: str | None = None,
 ) -> None:
     """Crea o actualiza el cursor de una fuente de ingesta."""
-    now = datetime.utcnow().isoformat()
+    now = now_utc_iso()
     with connect() as c:
         c.execute(
             "INSERT INTO ingestion_cursors "
@@ -352,14 +361,7 @@ def upsert_licitaciones_with_history(
             ).fetchone()
 
             data = asdict(lic)
-            keys = list(data.keys())
-            for k in keys:
-                if not _VALID_COLUMN_NAME.match(k):
-                    raise ValueError(f"Nombre de columna no válido: {k!r}")
-            vals = list(data.values())
-            cols = ", ".join(keys)
-            placeholders = ", ".join("?" for _ in keys)
-            updates = ", ".join(f"{k}=excluded.{k}" for k in keys if k != "id_externo")
+            vals = [data[k] for k in _LIC_KEYS]
 
             if existing is not None:
                 # Construir dict del registro existente para comparar
@@ -388,7 +390,7 @@ def upsert_licitaciones_with_history(
                         "VALUES (?, ?, ?, ?, ?)",
                         (
                             lic.id_externo,
-                            datetime.utcnow().isoformat(),
+                            now_utc_iso(),
                             source,
                             snapshot,
                             ",".join(changed),
@@ -402,8 +404,8 @@ def upsert_licitaciones_with_history(
 
             # UPSERT (siempre, incluso si unchanged — actualiza fecha_extraccion)
             c.execute(
-                f"INSERT INTO licitaciones ({cols}) VALUES ({placeholders}) "  # noqa: S608
-                f"ON CONFLICT(id_externo) DO UPDATE SET {updates}",
+                f"INSERT INTO licitaciones ({_LIC_COLS}) VALUES ({_LIC_PLACEHOLDERS}) "  # noqa: S608
+                f"ON CONFLICT(id_externo) DO UPDATE SET {_LIC_UPDATES}",
                 vals,
             )
 
@@ -422,3 +424,33 @@ def get_history(id_externo: str, limit: int = 50) -> list[dict[str, Any]]:
         )
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
+
+
+def fts_available() -> bool:
+    """True si la tabla FTS5 existe en la BD."""
+    with connect() as c:
+        row = c.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='licitaciones_fts'"
+        ).fetchone()
+        return row is not None
+
+
+def search_fts(query: str, limit: int = 50, offset: int = 0) -> tuple[list[dict[str, Any]], int]:
+    """Busca licitaciones usando FTS5. Devuelve (rows, total)."""
+    with connect() as c:
+        count_row = c.execute(
+            "SELECT COUNT(*) FROM licitaciones_fts WHERE licitaciones_fts MATCH ?",
+            [query],
+        ).fetchone()
+        total = int(count_row[0])
+
+        cur = c.execute(
+            "SELECT l.* FROM licitaciones l "
+            "JOIN licitaciones_fts f ON l.rowid = f.rowid "
+            "WHERE licitaciones_fts MATCH ? "
+            "ORDER BY rank LIMIT ? OFFSET ?",
+            [query, limit, offset],
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
+    return rows, total

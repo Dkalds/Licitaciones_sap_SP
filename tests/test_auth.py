@@ -42,7 +42,8 @@ class TestCheckPasswordNoAuth:
         with patch("config.DASHBOARD_PASSWORD", ""):
             auth = _import_auth()
             with patch.object(auth, "_get_password", return_value=""):
-                result = auth.check_password()
+                with patch.object(auth, "oauth_configured", return_value=False):
+                    result = auth.check_password()
         assert result is True
 
 

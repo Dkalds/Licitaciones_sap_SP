@@ -21,7 +21,6 @@ Cómo obtener la contraseña de aplicación de Gmail
 
 from __future__ import annotations
 
-import os
 import smtplib
 import textwrap
 from email.mime.multipart import MIMEMultipart
@@ -65,7 +64,9 @@ _LEVEL_EMOJI = {
 
 
 def _min_level() -> AlertLevel:
-    raw = os.environ.get("ALERT_MIN_LEVEL", "warn").lower()
+    from config import ALERT_MIN_LEVEL
+
+    raw = ALERT_MIN_LEVEL.lower()
     return _LEVEL_NAMES.get(raw, AlertLevel.WARN)
 
 
@@ -111,11 +112,19 @@ def _send_smtp(
     ``to_addr`` sobreescribe la variable de entorno ``ALERT_EMAIL_TO``
     cuando se especifica (útil para notificaciones por destinatario).
     """
-    recipient = (to_addr or os.environ.get("ALERT_EMAIL_TO") or "").strip()
-    user = os.environ.get("ALERT_SMTP_USER", "").strip()
-    password = os.environ.get("ALERT_SMTP_PASSWORD", "").strip()
-    host = os.environ.get("ALERT_SMTP_HOST", "smtp.gmail.com").strip()
-    port = int(os.environ.get("ALERT_SMTP_PORT", "587"))
+    from config import (
+        ALERT_EMAIL_TO,
+        ALERT_SMTP_HOST,
+        ALERT_SMTP_PASSWORD,
+        ALERT_SMTP_PORT,
+        ALERT_SMTP_USER,
+    )
+
+    recipient = (to_addr or ALERT_EMAIL_TO or "").strip()
+    user = ALERT_SMTP_USER.strip()
+    password = ALERT_SMTP_PASSWORD.strip()
+    host = ALERT_SMTP_HOST.strip()
+    port = ALERT_SMTP_PORT
 
     if not (recipient and user and password):
         log.debug(
@@ -206,7 +215,7 @@ def check_daily_lag() -> None:
     Consulta ``ingestion_cursors`` para ``place_live_atom`` y compara
     ``last_seen_updated`` con la hora actual.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     from db.database import get_cursor
 
@@ -222,10 +231,10 @@ def check_daily_lag() -> None:
     try:
         # Parsear timestamp ISO
         last_dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
-        now = datetime.utcnow()
-        # Comparar sin tzinfo si last_dt es naive
-        if last_dt.tzinfo is not None:
-            last_dt = last_dt.replace(tzinfo=None)
+        now = datetime.now(timezone.utc)
+        # Normalizar a aware UTC para comparar
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
         lag = now - last_dt
         lag_hours = lag.total_seconds() / 3600
     except (ValueError, TypeError):

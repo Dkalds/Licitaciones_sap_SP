@@ -52,6 +52,24 @@ def render_sidebar_filters(df_full: pd.DataFrame) -> FiltersState:
     )
 
     st.divider()
+
+    # ── Modo comparativa ─────────────────────────────────────────────
+    comparar = st.toggle("📊 Modo comparativa", key="fs_comparar")
+    rango_b = None
+    if comparar and pd.notna(fmin) and pd.notna(fmax):
+        st.caption("Rango B (comparar con)")
+        rango_b_raw = st.date_input(
+            "Rango B",
+            (fmin.date(), fmax.date()),
+            min_value=fmin.date(),
+            max_value=fmax.date(),
+            key="fs_rango_b",
+            label_visibility="collapsed",
+        )
+        if isinstance(rango_b_raw, tuple) and len(rango_b_raw) == 2:
+            rango_b = rango_b_raw
+
+    st.divider()
     st.caption(f"Última actualización BD:\n{df_full['fecha_extraccion'].max()}")
 
     return FiltersState(
@@ -62,4 +80,6 @@ def render_sidebar_filters(df_full: pd.DataFrame) -> FiltersState:
         organos=list(organos),
         tipos_proy=list(tipos_proy),
         importe_min=int(importe_min),
+        comparar=comparar,
+        rango_b=rango_b,
     )

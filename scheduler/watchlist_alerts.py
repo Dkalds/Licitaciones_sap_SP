@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from db.database import connect
@@ -27,7 +27,9 @@ _LOOKBACK_DAYS = 30
 
 def _user_key() -> str:
     """Misma derivación que usa el dashboard (hash del DASHBOARD_PASSWORD)."""
-    seed = os.environ.get("DASHBOARD_PASSWORD", "") or os.environ.get("COMPUTERNAME", "default")
+    from config import DASHBOARD_PASSWORD
+
+    seed = DASHBOARD_PASSWORD or os.environ.get("COMPUTERNAME", "default")
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
 
 
@@ -87,8 +89,8 @@ def check_and_notify() -> int:
         log.debug("watchlist_empty", user_key=user_key)
         return 0
 
-    now_ts = datetime.utcnow().isoformat()
-    default_since = (datetime.utcnow() - timedelta(days=_LOOKBACK_DAYS)).date().isoformat()
+    now_ts = datetime.now(timezone.utc).isoformat()
+    default_since = (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).date().isoformat()
 
     # Agrupar entradas por email destinatario para enviar un único correo por persona
     from collections import defaultdict

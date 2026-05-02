@@ -54,8 +54,16 @@ def render_kpi_bar(df: pd.DataFrame) -> None:
     k = compute_kpis(df)
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
+        delta_txt = f"{k['delta_pct']:+.0f}% últ. 30d" if k["prev30_size"] else "sin comparativa"
         st.markdown(
-            kpi_card("Licitaciones SAP", f"{k['total']:,}", icon="📋"), unsafe_allow_html=True
+            kpi_card(
+                "Licitaciones SAP",
+                f"{k['total']:,}",
+                delta=delta_txt,
+                delta_up=k["delta_n"] >= 0,
+                icon="📋",
+            ),
+            unsafe_allow_html=True,
         )
     with c2:
         st.markdown(
@@ -72,14 +80,7 @@ def render_kpi_bar(df: pd.DataFrame) -> None:
             kpi_card("Órganos distintos", f"{k['n_organos']}", icon="🏛️"), unsafe_allow_html=True
         )
     with c5:
-        delta_txt = f"{k['delta_pct']:+.0f}% últ. 30d" if k["prev30_size"] else "sin comparativa"
         st.markdown(
-            kpi_card(
-                "CCAA cubiertas",
-                f"{k['n_ccaa']}/17",
-                delta=delta_txt,
-                delta_up=k["delta_n"] >= 0,
-                icon="🗺️",
-            ),
+            kpi_card("CCAA cubiertas", f"{k['n_ccaa']}/17", icon="🗺️"),
             unsafe_allow_html=True,
         )

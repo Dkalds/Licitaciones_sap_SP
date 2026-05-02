@@ -1,39 +1,147 @@
-"""Configuración global del proyecto."""
+"""Configuración global del proyecto — basada en pydantic-settings."""
 
-import os
+from __future__ import annotations
+
 import warnings
 from pathlib import Path
+from typing import Literal
 
-from dotenv import load_dotenv
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
+_ROOT = Path(__file__).parent
 
-ROOT = Path(__file__).parent
-DATA_DIR = Path(os.environ.get("DATA_DIR", ROOT / "data"))
-DOWNLOADS_DIR = DATA_DIR / "downloads"
-DB_PATH = Path(os.environ.get("DB_PATH", DATA_DIR / "licitaciones.db"))
 
-# Contraseña para proteger el dashboard (vacío = sin autenticación)
-DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+class Settings(BaseSettings):
+    """Todas las variables de entorno del proyecto, validadas al arrancar."""
 
-# Turso (libSQL cloud) — ambas variables son necesarias para activar Turso
-TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL", "")
-TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
-TURSO_LOCAL_DB = Path(os.environ.get("TURSO_LOCAL_DB", DATA_DIR / "licitaciones_replica.db"))
-
-# Validar que Turso se configura con URL y token simultáneamente
-if bool(TURSO_DATABASE_URL) ^ bool(TURSO_AUTH_TOKEN):
-    warnings.warn(
-        "Configuración Turso incompleta: se necesitan TURSO_DATABASE_URL y "
-        "TURSO_AUTH_TOKEN juntas. Se usará SQLite local como fallback.",
-        stacklevel=1,
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
-    TURSO_DATABASE_URL = ""
-    TURSO_AUTH_TOKEN = ""
+
+    # ── Entorno ──────────────────────────────────────────────────────────
+    ENV: Literal["dev", "prod"] = "dev"
+
+    # ── Rutas ────────────────────────────────────────────────────────────
+    DATA_DIR: Path = _ROOT / "data"
+    DB_PATH: Path | None = None  # default calculado en validator
+    DOWNLOADS_DIR: Path | None = None
+
+    # ── Dashboard ────────────────────────────────────────────────────────
+    DASHBOARD_PASSWORD: str = ""
+    DASHBOARD_CACHE_TTL: int = 300
+
+    # ── OAuth ────────────────────────────────────────────────────────────
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    OAUTH_REDIRECT_URI: str = "http://localhost:8501"
+
+    # ── Turso ────────────────────────────────────────────────────────────
+    TURSO_DATABASE_URL: str = ""
+    TURSO_AUTH_TOKEN: str = ""
+    TURSO_LOCAL_DB: Path | None = None
+
+    # ── API ──────────────────────────────────────────────────────────────
+    API_KEY: str = ""
+    API_RATE_LIMIT: str = "60/minute"
+
+    # ── Observabilidad ───────────────────────────────────────────────────
+    LOG_FORMAT: str = ""
+    ALERT_MIN_LEVEL: str = "warn"
+    ALERT_EMAIL_TO: str = ""
+    ALERT_SMTP_USER: str = ""
+    ALERT_SMTP_PASSWORD: str = ""
+    ALERT_SMTP_HOST: str = "smtp.gmail.com"
+    ALERT_SMTP_PORT: int = 587
+
+    # ── Scraper ──────────────────────────────────────────────────────────
+    REQUEST_TIMEOUT: int = 30
+    REQUEST_DELAY_SECONDS: float = 1.5
+    MAX_DOWNLOAD_SIZE_BYTES: int = 200 * 1024 * 1024
+    MAX_XML_SIZE_BYTES: int = 150 * 1024 * 1024
+    DAILY_MAX_PAGES: int = 50
+    BACKFILL_MAX_WORKERS: int = 3
+
+    # ── Validators ───────────────────────────────────────────────────────
+    @model_validator(mode="after")
+    def _set_derived_paths(self) -> Settings:
+        if self.DB_PATH is None:
+            self.DB_PATH = self.DATA_DIR / "licitaciones.db"
+        if self.DOWNLOADS_DIR is None:
+            self.DOWNLOADS_DIR = self.DATA_DIR / "downloads"
+        if self.TURSO_LOCAL_DB is None:
+            self.TURSO_LOCAL_DB = self.DATA_DIR / "licitaciones_replica.db"
+        return self
+
+    @model_validator(mode="after")
+    def _validate_turso_pair(self) -> Settings:
+        if bool(self.TURSO_DATABASE_URL) ^ bool(self.TURSO_AUTH_TOKEN):
+            warnings.warn(
+                "Configuración Turso incompleta: se necesitan TURSO_DATABASE_URL y "
+                "TURSO_AUTH_TOKEN juntas. Se usará SQLite local como fallback.",
+                stacklevel=2,
+            )
+            self.TURSO_DATABASE_URL = ""
+            self.TURSO_AUTH_TOKEN = ""
+        return self
+
+    @model_validator(mode="after")
+    def _validate_prod_password(self) -> Settings:
+        if self.ENV == "prod" and not self.DASHBOARD_PASSWORD:
+            raise ValueError(
+                "DASHBOARD_PASSWORD es obligatorio en ENV=prod. "
+                "Configura la variable de entorno antes de arrancar."
+            )
+        return self
+
+    @field_validator("DASHBOARD_CACHE_TTL", mode="before")
+    @classmethod
+    def _parse_cache_ttl(cls, v: object) -> int:
+        return int(v)  # type: ignore[arg-type]
+
+
+def _load() -> Settings:
+    return Settings()  # type: ignore[call-arg]
+
+
+_settings = _load()
+
+# ── Backward-compatible module-level exports ─────────────────────────────
+# Todos los consumidores existentes usan ``from config import X``.
+# Estos aliases permiten que sigan funcionando sin cambios.
+ROOT = _ROOT
+DATA_DIR = _settings.DATA_DIR
+DOWNLOADS_DIR = _settings.DOWNLOADS_DIR  # type: ignore[assignment]
+DB_PATH = _settings.DB_PATH  # type: ignore[assignment]
+DASHBOARD_PASSWORD = _settings.DASHBOARD_PASSWORD
+DASHBOARD_CACHE_TTL = _settings.DASHBOARD_CACHE_TTL
+GOOGLE_CLIENT_ID = _settings.GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET = _settings.GOOGLE_CLIENT_SECRET
+OAUTH_REDIRECT_URI = _settings.OAUTH_REDIRECT_URI
+TURSO_DATABASE_URL = _settings.TURSO_DATABASE_URL
+TURSO_AUTH_TOKEN = _settings.TURSO_AUTH_TOKEN
+TURSO_LOCAL_DB = _settings.TURSO_LOCAL_DB  # type: ignore[assignment]
+API_KEY = _settings.API_KEY
+API_RATE_LIMIT = _settings.API_RATE_LIMIT
+LOG_FORMAT = _settings.LOG_FORMAT
+ALERT_MIN_LEVEL = _settings.ALERT_MIN_LEVEL
+ALERT_EMAIL_TO = _settings.ALERT_EMAIL_TO
+ALERT_SMTP_USER = _settings.ALERT_SMTP_USER
+ALERT_SMTP_PASSWORD = _settings.ALERT_SMTP_PASSWORD
+ALERT_SMTP_HOST = _settings.ALERT_SMTP_HOST
+ALERT_SMTP_PORT = _settings.ALERT_SMTP_PORT
+REQUEST_TIMEOUT = _settings.REQUEST_TIMEOUT
+REQUEST_DELAY_SECONDS = _settings.REQUEST_DELAY_SECONDS
+MAX_DOWNLOAD_SIZE_BYTES = _settings.MAX_DOWNLOAD_SIZE_BYTES
+MAX_XML_SIZE_BYTES = _settings.MAX_XML_SIZE_BYTES
+DAILY_MAX_PAGES = _settings.DAILY_MAX_PAGES
+BACKFILL_MAX_WORKERS = _settings.BACKFILL_MAX_WORKERS
 
 
 def ensure_data_dirs() -> None:
-    """Crea los directorios de datos si no existen. Llamar explícitamente."""
+    """Crea los directorios de datos si no existen."""
     DATA_DIR.mkdir(exist_ok=True)
     DOWNLOADS_DIR.mkdir(exist_ok=True)
 
@@ -144,19 +252,11 @@ PLACE_SEARCH_URL = f"{PLACE_BASE_URL}/wps/portal/plataforma/buscadores/busqueda/
 # User agent identificable (buena práctica scraping ético)
 USER_AGENT = "LicitacionesSAP-Bot/1.0"
 
-REQUEST_TIMEOUT = 30
-REQUEST_DELAY_SECONDS = 1.5  # delay entre requests para no saturar
-
-# Límites de tamaño para descargas (defensa contra recursos excesivos)
-MAX_DOWNLOAD_SIZE_BYTES = 200 * 1024 * 1024  # 200 MB por ZIP mensual
-MAX_XML_SIZE_BYTES = 150 * 1024 * 1024  # 150 MB por fichero XML
-
 # Feed ATOM en vivo — sindicación paginada de PLACE
 PLACE_LIVE_ATOM_URL = (
     "https://contrataciondelsectorpublico.gob.es/sindicacion/sindicacion_643/"
     "licitacionesPerfilesContratanteCompleto3.atom"
 )
-DAILY_MAX_PAGES = 50  # tope de seguridad para paginación del feed en vivo
 
 # Campos clave para detección de cambios (historial)
 HISTORY_TRACKED_FIELDS = (

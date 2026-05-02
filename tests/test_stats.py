@@ -9,6 +9,7 @@ from dashboard.stats import (
     calidad_dato,
     calientes_hoy,
     ccaa_mas_activa,
+    compare_periods,
     concentracion_geografica,
     funnel_estados,
     hhi_concentracion,
@@ -46,7 +47,7 @@ from dashboard.stats import (
 
 def _base_df(n: int = 5) -> pd.DataFrame:
     """DataFrame mínimo compatible con todas las funciones."""
-    now = pd.Timestamp.utcnow()
+    now = pd.Timestamp.now("UTC")
     return pd.DataFrame(
         {
             "id_externo": [f"id-{i}" for i in range(n)],
@@ -172,7 +173,7 @@ class TestPorCpv:
 
 class TestYoyDelta:
     def _build(self) -> pd.DataFrame:
-        now = pd.Timestamp.utcnow()
+        now = pd.Timestamp.now("UTC")
         rows = []
         # 5 en últimos 30 días
         for i in range(5):
@@ -234,7 +235,7 @@ class TestYoyDelta:
 
     def test_no_prev_period_returns_pct_zero(self):
         """Si prev == 0, pct debe ser 0 (sin división por cero)."""
-        now = pd.Timestamp.utcnow()
+        now = pd.Timestamp.now("UTC")
         df = pd.DataFrame(
             [
                 {
@@ -266,7 +267,7 @@ class TestTasaAnulacion:
         assert tasa_anulacion(df) == 0.0
 
     def test_all_anuladas_returns_100(self):
-        now = pd.Timestamp.utcnow()
+        now = pd.Timestamp.now("UTC")
         df = pd.DataFrame(
             {
                 "id_externo": ["a", "b"],
@@ -281,7 +282,7 @@ class TestTasaAnulacion:
         assert tasa_anulacion(df) == pytest.approx(100.0)
 
     def test_partial_rate(self):
-        now = pd.Timestamp.utcnow()
+        now = pd.Timestamp.now("UTC")
         rows = []
         for i in range(4):
             rows.append(
@@ -300,7 +301,7 @@ class TestTasaAnulacion:
         assert rate == pytest.approx(25.0)
 
     def test_records_outside_12_months_excluded(self):
-        now = pd.Timestamp.utcnow()
+        now = pd.Timestamp.now("UTC")
         df = pd.DataFrame(
             {
                 "id_externo": ["old"],
@@ -721,7 +722,7 @@ class TestTopModuloYoy:
         assert top_modulo_yoy(df) is None
 
     def test_picks_highest_growth(self):
-        hoy = pd.Timestamp.utcnow()
+        hoy = pd.Timestamp.now("UTC")
         rows = []
         # 5 lics de FI en los últimos 365d, 1 en 365-730d atrás → crecimiento 400%
         for i in range(5):
@@ -814,7 +815,7 @@ class TestCalientesHoy:
         assert out.empty
 
     def test_filters_by_estado_and_p75(self):
-        hoy = pd.Timestamp.utcnow()
+        hoy = pd.Timestamp.now("UTC")
         df = pd.DataFrame(
             {
                 "id_externo": ["a", "b", "c", "d"],
@@ -840,7 +841,7 @@ class TestVencenEn:
         assert vencen_en(_empty_df()) == 0
 
     def test_count_in_window(self):
-        hoy = pd.Timestamp.utcnow()
+        hoy = pd.Timestamp.now("UTC")
         df = pd.DataFrame(
             {
                 "id_externo": ["a", "b", "c"],
@@ -863,7 +864,7 @@ class TestVelocityFunnel:
         assert out == {}
 
     def test_pub_a_fin_plazo(self):
-        hoy = pd.Timestamp.utcnow()
+        hoy = pd.Timestamp.now("UTC")
         df = pd.DataFrame(
             {
                 "fecha_publicacion": [hoy - pd.Timedelta(days=10)] * 3,
@@ -934,7 +935,7 @@ class TestScoreOportunidad:
     """Tests para score_oportunidad — suma ponderada 0-100."""
 
     def _df_scoring(self) -> pd.DataFrame:
-        now = pd.Timestamp.utcnow()
+        now = pd.Timestamp.now("UTC")
         return pd.DataFrame(
             {
                 "id_externo": ["lic-1", "lic-2", "lic-3"],
@@ -1142,3 +1143,45 @@ class TestKpisOrgano:
         # Lead time mediano de las 3 adj (cada una ~30 días)
         assert out["lead_time_dias"] is not None
         assert 25 <= out["lead_time_dias"] <= 35
+
+
+class TestComparePeriods:
+    def test_basic_compare(self):
+        now = pd.Timestamp.now("UTC")
+        df = pd.DataFrame(
+            {
+                "fecha_publicacion": [
+                    now - pd.Timedelta(days=60),
+                    now - pd.Timedelta(days=55),
+                    now - pd.Timedelta(days=10),
+                    now - pd.Timedelta(days=5),
+                    now - pd.Timedelta(days=3),
+                ],
+                "importe": [100, 200, 300, 400, 500],
+                "organo_contratacion": ["A", "A", "B", "B", "C"],
+            }
+        )
+        ra = (now - pd.Timedelta(days=70), now - pd.Timedelta(days=50))
+        rb = (now - pd.Timedelta(days=15), now)
+        result = compare_periods(df, ra, rb)
+        assert result["total"]["a"] == 2
+        assert result["total"]["b"] == 3
+        assert result["total"]["delta_pct"] == pytest.approx(50.0)
+        assert result["organos"]["a"] == 1  # only A
+        assert result["organos"]["b"] == 2  # B and C
+
+    def test_empty_range_a(self):
+        now = pd.Timestamp.now("UTC")
+        df = pd.DataFrame(
+            {
+                "fecha_publicacion": [now - pd.Timedelta(days=5)],
+                "importe": [100],
+                "organo_contratacion": ["X"],
+            }
+        )
+        ra = (now - pd.Timedelta(days=100), now - pd.Timedelta(days=90))
+        rb = (now - pd.Timedelta(days=10), now)
+        result = compare_periods(df, ra, rb)
+        assert result["total"]["a"] == 0
+        assert result["total"]["b"] == 1
+        assert result["total"]["delta_pct"] == 0.0

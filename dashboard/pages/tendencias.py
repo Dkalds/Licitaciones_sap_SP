@@ -63,14 +63,14 @@ def render(ctx: PageContext) -> None:
                 unsafe_allow_html=True,
             )
 
-        # Crecimiento YoY (365d vs 365d anteriores)
+        # Crecimiento YoY (365d vs 365d anteriores) — en nº de licitaciones
         _, _, pct_y = yoy_delta(df, col="importe", agg="count", days=365)
         with k3:
             st.markdown(
                 kpi_card(
-                    "Crecimiento YoY",
+                    "Crecimiento YoY (lics)",
                     f"{pct_y:+.1f}%",
-                    delta="últimos 12m vs anteriores 12m",
+                    delta="nº lics últimos 12m vs anteriores 12m",
                     delta_up=pct_y >= 0,
                     icon="🚀",
                     tooltip=KPI_FORMULAS["yoy_365d"],

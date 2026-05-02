@@ -67,7 +67,7 @@ def render(ctx: PageContext) -> None:
         )
         return
 
-    hoy_rv = pd.Timestamp.utcnow().tz_localize(None)
+    hoy_rv = pd.Timestamp.now("UTC").tz_localize(None)
     horiz_fin = hoy_rv + pd.DateOffset(months=rv_horizonte)
 
     oport = fc_rv[

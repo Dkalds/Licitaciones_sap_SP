@@ -25,11 +25,11 @@ def test_healthcheck_healthy_after_successful_run(tmp_db):
 
 
 def test_healthcheck_degraded_when_last_run_stale(tmp_db):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     from db.database import connect
 
-    old = (datetime.utcnow() - timedelta(days=5)).isoformat()
+    old = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
     with connect() as c:
         c.execute(
             "INSERT INTO extraction_runs "
@@ -47,7 +47,7 @@ def test_healthcheck_degraded_when_last_run_stale(tmp_db):
 
 
 def test_healthcheck_degraded_when_dlq_above_threshold(tmp_db):
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     from db.database import connect
 
@@ -56,12 +56,12 @@ def test_healthcheck_degraded_when_dlq_above_threshold(tmp_db):
             "INSERT INTO extraction_runs "
             "(run_id, started_at, ended_at, status) VALUES "
             "('r1', ?, ?, 'ok')",
-            (datetime.utcnow().isoformat(), datetime.utcnow().isoformat()),
+            (datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()),
         )
         for i in range(6):
             c.execute(
                 "INSERT INTO failed_extractions (fuente, created_at) VALUES (?, ?)",
-                (f"src-{i}", datetime.utcnow().isoformat()),
+                (f"src-{i}", datetime.now(timezone.utc).isoformat()),
             )
 
     from scheduler.healthcheck import run_check

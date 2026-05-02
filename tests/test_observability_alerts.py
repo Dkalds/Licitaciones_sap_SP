@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import importlib
 from unittest.mock import MagicMock, patch
 
 from observability.alerts import AlertLevel, _build_html, notify
 
 
+def _reload_config():
+    """Recarga config para que las variables de entorno actualizadas surtan efecto."""
+    import config as cfg
+
+    importlib.reload(cfg)
+
+
 def test_notify_below_min_level_is_noop(monkeypatch):
     monkeypatch.setenv("ALERT_MIN_LEVEL", "error")
+    _reload_config()
     with patch("observability.alerts._send_smtp") as smtp:
         notify(AlertLevel.WARN, "t", "b")
     smtp.assert_not_called()
@@ -16,6 +25,7 @@ def test_notify_below_min_level_is_noop(monkeypatch):
 
 def test_notify_above_min_level_calls_smtp(monkeypatch):
     monkeypatch.setenv("ALERT_MIN_LEVEL", "warn")
+    _reload_config()
     with patch("observability.alerts._send_smtp") as smtp:
         notify(AlertLevel.WARN, "título", "cuerpo", count=3)
     smtp.assert_called_once()
@@ -26,6 +36,7 @@ def test_notify_above_min_level_calls_smtp(monkeypatch):
 
 def test_notify_critical_always_dispatched(monkeypatch):
     monkeypatch.setenv("ALERT_MIN_LEVEL", "warn")
+    _reload_config()
     with patch("observability.alerts._send_smtp") as smtp:
         notify(AlertLevel.CRITICAL, "alerta crítica")
     smtp.assert_called_once()
@@ -33,6 +44,7 @@ def test_notify_critical_always_dispatched(monkeypatch):
 
 def test_notify_accepts_string_level(monkeypatch):
     monkeypatch.setenv("ALERT_MIN_LEVEL", "warn")
+    _reload_config()
     with patch("observability.alerts._send_smtp") as smtp:
         notify("error", "title", "body", foo="bar")
     smtp.assert_called_once()
@@ -40,6 +52,7 @@ def test_notify_accepts_string_level(monkeypatch):
 
 def test_notify_unknown_string_level_defaults_to_warn(monkeypatch):
     monkeypatch.setenv("ALERT_MIN_LEVEL", "info")
+    _reload_config()
     with patch("observability.alerts._send_smtp") as smtp:
         notify("unknown_level", "title")
     smtp.assert_called_once()
@@ -51,9 +64,10 @@ def test_alert_level_ordering():
 
 def test_send_smtp_skips_when_not_configured(monkeypatch):
     """Sin variables de entorno SMTP no intenta conectar."""
-    monkeypatch.delenv("ALERT_EMAIL_TO", raising=False)
-    monkeypatch.delenv("ALERT_SMTP_USER", raising=False)
-    monkeypatch.delenv("ALERT_SMTP_PASSWORD", raising=False)
+    monkeypatch.setenv("ALERT_EMAIL_TO", "")
+    monkeypatch.setenv("ALERT_SMTP_USER", "")
+    monkeypatch.setenv("ALERT_SMTP_PASSWORD", "")
+    _reload_config()
     with patch("smtplib.SMTP") as mock_smtp:
         from observability.alerts import _send_smtp
 
@@ -68,6 +82,7 @@ def test_send_smtp_connects_and_sends(monkeypatch):
     monkeypatch.setenv("ALERT_SMTP_PASSWORD", "app-password-16ch")
     monkeypatch.setenv("ALERT_SMTP_HOST", "smtp.gmail.com")
     monkeypatch.setenv("ALERT_SMTP_PORT", "587")
+    _reload_config()
 
     mock_server = MagicMock()
     mock_server.__enter__ = lambda s: s

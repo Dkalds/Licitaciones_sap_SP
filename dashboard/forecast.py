@@ -112,7 +112,7 @@ def build_forecast_df(
     df["relicit_fin"] = df["fecha_fin_estimada"]
 
     # Solo nos interesan los que terminan en el futuro
-    hoy = pd.Timestamp.utcnow().tz_localize(None)
+    hoy = pd.Timestamp.now("UTC").tz_localize(None)
     df["dias_hasta_fin"] = (df["fecha_fin_estimada"] - hoy).dt.days
     df["meses_hasta_fin"] = df["dias_hasta_fin"] / 30.4375
 
