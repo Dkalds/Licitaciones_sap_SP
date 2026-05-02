@@ -110,7 +110,7 @@ def check_and_notify() -> int:
 
         for entry in recipient_entries:
             raw_since = entry.get("last_notified_at") or default_since
-            since_date = str(raw_since)[:10]
+            since_date = str(raw_since)
 
             candidates = _query_licitaciones_since(entry["cpv_prefix"], since_date)
             matched = [lic for lic in candidates if matches_licitacion(entry, lic)]

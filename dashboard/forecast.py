@@ -95,7 +95,7 @@ def build_forecast_df(
     # Inicio efectivo: prioridad → fecha_inicio explícita > adjudicación >
     # fecha_publicacion
     fpub = pd.to_datetime(df["fecha_publicacion"], errors="coerce", utc=True)
-    if hasattr(fpub.dt, "tz_localize"):
+    if fpub.dt.tz is not None:
         fpub = fpub.dt.tz_localize(None)
     df["inicio_efectivo"] = df["fecha_inicio_dt"].fillna(df["fecha_adj_calc"]).fillna(fpub)
 

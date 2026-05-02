@@ -83,19 +83,21 @@ def process_month(year: int, month: int, *, run_id: str | None = None, force: bo
         return {"year": year, "month": month, "status": "error_persistencia"}
 
     n_adj = 0
+    n_adj_failed = 0
     for lic_id, adjs in adj_por_lic.items():
         try:
             n_adj += replace_adjudicaciones(lic_id, adjs)
         except Exception as e:
             log.exception("adj_persist_error", licitacion_id=lic_id)
             record_failure(run_id, fuente, e, scope="persist_adjudicaciones", payload_ref=lic_id)
+            n_adj_failed += 1
 
     log_extraccion(
         fuente=fuente,
         nuevas=nuevas,
         actualizadas=actualizadas,
         total=len(sap_encontradas),
-        notas=f"SAP:{len(sap_encontradas)} adj:{n_adj} errors:{entries_error}",
+        notas=f"SAP:{len(sap_encontradas)} adj:{n_adj} adj_errors:{n_adj_failed} errors:{entries_error}",
     )
     return {
         "year": year,
@@ -103,6 +105,7 @@ def process_month(year: int, month: int, *, run_id: str | None = None, force: bo
         "status": "ok",
         "sap_matches": len(sap_encontradas),
         "adjudicaciones": n_adj,
+        "adj_errors": n_adj_failed,
         "nuevas": nuevas,
         "actualizadas": actualizadas,
         "entries_error": entries_error,
@@ -110,6 +113,7 @@ def process_month(year: int, month: int, *, run_id: str | None = None, force: bo
 
 
 def _summarize(results: list[dict], metrics) -> None:
+    adj_errors_total = 0
     for r in results:
         metrics.months_attempted += 1
         if r["status"] == "ok":
@@ -118,12 +122,15 @@ def _summarize(results: list[dict], metrics) -> None:
             metrics.licitaciones_actualizadas += r.get("actualizadas", 0)
             metrics.adjudicaciones += r.get("adjudicaciones", 0)
             metrics.errores_parseo += r.get("entries_error", 0)
+            adj_errors_total += r.get("adj_errors", 0)
         elif r["status"] == "no_publicado":
             metrics.months_ok += 1
         else:
             metrics.months_failed += 1
             if r["status"] == "error_descarga":
                 metrics.errores_descarga += 1
+    if adj_errors_total:
+        metrics.notas = f"adj_persist_errors:{adj_errors_total}"
 
 
 def update_recent(months_back: int = 3) -> list[dict]:
