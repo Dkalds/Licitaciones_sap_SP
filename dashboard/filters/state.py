@@ -15,6 +15,8 @@ class FiltersState:
     organos: list[str] = field(default_factory=list)
     tipos_proy: list[str] = field(default_factory=list)
     importe_min: int = 0
+    comparar: bool = False
+    rango_b: tuple[date, date] | None = None
 
     def is_active(self) -> bool:
         """Devuelve True si algún filtro distinto al rango está activo."""

@@ -9,7 +9,7 @@ mantener un historial auditable sigue siendo importante.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from observability.logging import get_logger
@@ -114,7 +114,75 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_hist_externo ON licitaciones_history(id_externo, captured_at);
         """,
     ),
+    (
+        6,
+        "licitaciones_extra_columns",
+        """
+        -- Columnas previamente añadidas por _migrate() en database.py.
+        -- ALTER TABLE ADD COLUMN es idempotente en SQLite (falla silenciosamente
+        -- si la columna ya existe según el IF NOT EXISTS workaround).
+        -- Usamos subconsultas PRAGMA para comprobar existencia.
+        """,
+    ),
+    (
+        7,
+        "fts5_licitaciones",
+        """
+        -- Se aplica de forma programática en _apply_v7_fts() porque
+        -- requiere que la tabla licitaciones exista y necesita rebuild
+        -- del índice con datos existentes.
+        """,
+    ),
+    (
+        8,
+        "users_and_watchlist_user_id",
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            email           TEXT UNIQUE,
+            oauth_provider  TEXT,
+            oauth_sub       TEXT,
+            display_name    TEXT,
+            created_at      TEXT NOT NULL,
+            UNIQUE(oauth_provider, oauth_sub)
+        );
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_sub);
+        """,
+    ),
+    (
+        9,
+        "access_log",
+        """
+        CREATE TABLE IF NOT EXISTS access_log (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         INTEGER,
+            email           TEXT,
+            auth_method     TEXT NOT NULL,
+            logged_in_at    TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_access_log_user ON access_log(user_id);
+        CREATE INDEX IF NOT EXISTS idx_access_log_time ON access_log(logged_in_at);
+        """,
+    ),
 ]
+
+# Columnas de la migración 6 — se aplican de forma programática porque
+# SQLite no soporta IF NOT EXISTS en ALTER TABLE ADD COLUMN.
+_V6_COLUMNS: list[tuple[str, str]] = [
+    ("duracion_valor", "REAL"),
+    ("duracion_unidad", "TEXT"),
+    ("fecha_inicio", "TEXT"),
+    ("fecha_fin", "TEXT"),
+    ("prorroga_descripcion", "TEXT"),
+    ("fecha_actualizacion_fuente", "TEXT"),
+]
+
+
+import re
+
+_VALID_COLUMN_NAME = re.compile(r"^[a-zA-Z_]\w*$")
 
 
 def _ensure_version_table(conn: Any) -> None:
@@ -146,13 +214,104 @@ def apply_pending(conn: Any) -> list[int]:
         log.info("migration_applying", version=version, description=description)
         for stmt in sql.split(";"):
             stmt = stmt.strip()
-            if stmt:
+            if stmt and not stmt.startswith("--"):
                 conn.execute(stmt)
+        # Migración 6: ALTER TABLE ADD COLUMN programático
+        if version == 6:
+            _apply_v6_columns(conn)
+        # Migración 7: FTS5 + triggers + rebuild
+        if version == 7:
+            _apply_v7_fts(conn)
+        # Migración 8: user_id column on watchlist_cpv
+        if version == 8:
+            _apply_v8_user_id(conn)
         conn.execute(
             "INSERT INTO schema_version (version, description, applied_at) VALUES (?, ?, ?)",
-            (version, description, datetime.utcnow().isoformat()),
+            (version, description, datetime.now(timezone.utc).isoformat()),
         )
         applied.append(version)
     if applied:
         log.info("migrations_applied", versions=applied)
     return applied
+
+
+def _apply_v6_columns(conn: Any) -> None:
+    """Añade columnas extra a licitaciones si no existen (idempotente)."""
+    # Si la tabla no existe aún (e.g. test de migraciones puro), no hay nada que hacer.
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='licitaciones'"
+    ).fetchone()
+    if not exists:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(licitaciones)").fetchall()}
+    for name, ctype in _V6_COLUMNS:
+        if not _VALID_COLUMN_NAME.match(name):
+            raise ValueError(f"Nombre de columna no válido: {name!r}")
+        if name not in cols:
+            conn.execute(f"ALTER TABLE licitaciones ADD COLUMN {name} {ctype}")
+
+
+_V7_FTS_STATEMENTS: list[str] = [
+    """
+    CREATE VIRTUAL TABLE IF NOT EXISTS licitaciones_fts USING fts5(
+        id_externo UNINDEXED,
+        titulo,
+        descripcion,
+        content=licitaciones,
+        content_rowid=rowid
+    )
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS trg_fts_insert AFTER INSERT ON licitaciones BEGIN
+        INSERT INTO licitaciones_fts(rowid, id_externo, titulo, descripcion)
+        VALUES (new.rowid, new.id_externo, new.titulo, new.descripcion);
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS trg_fts_delete BEFORE DELETE ON licitaciones BEGIN
+        INSERT INTO licitaciones_fts(licitaciones_fts, rowid, id_externo, titulo, descripcion)
+        VALUES ('delete', old.rowid, old.id_externo, old.titulo, old.descripcion);
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS trg_fts_update BEFORE UPDATE ON licitaciones BEGIN
+        INSERT INTO licitaciones_fts(licitaciones_fts, rowid, id_externo, titulo, descripcion)
+        VALUES ('delete', old.rowid, old.id_externo, old.titulo, old.descripcion);
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS trg_fts_update_after AFTER UPDATE ON licitaciones BEGIN
+        INSERT INTO licitaciones_fts(rowid, id_externo, titulo, descripcion)
+        VALUES (new.rowid, new.id_externo, new.titulo, new.descripcion);
+    END
+    """,
+]
+
+
+def _apply_v7_fts(conn: Any) -> None:
+    """Crea tabla FTS5, triggers y rebuild del índice (idempotente)."""
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='licitaciones'"
+    ).fetchone()
+    if not exists:
+        return
+    for stmt in _V7_FTS_STATEMENTS:
+        conn.execute(stmt)
+    # Rebuild: populate FTS index with existing data
+    conn.execute("INSERT INTO licitaciones_fts(licitaciones_fts) VALUES('rebuild')")
+
+
+def _apply_v8_user_id(conn: Any) -> None:
+    """Añade user_id a watchlist_cpv si no existe (idempotente)."""
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='watchlist_cpv'"
+    ).fetchone()
+    if not exists:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(watchlist_cpv)").fetchall()}
+    if "user_id" not in cols:
+        conn.execute(
+            "ALTER TABLE watchlist_cpv ADD COLUMN user_id INTEGER REFERENCES users(id)"
+        )
+    # Index for user_id lookups (idempotent via IF NOT EXISTS)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_wl_user_id ON watchlist_cpv(user_id)")

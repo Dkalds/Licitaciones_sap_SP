@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 
 from dateutil.relativedelta import relativedelta  # type: ignore[import-untyped]
@@ -148,16 +149,36 @@ def update_recent(months_back: int = 3) -> list[dict]:
 
 
 def backfill(start_year: int, start_month: int) -> list[dict]:
-    """Backfill desde una fecha histórica hasta hoy."""
+    """Backfill desde una fecha histórica hasta hoy (paralelo por meses)."""
+    from config import BACKFILL_MAX_WORKERS
+
     init_db()
     today = date.today()
     cur = date(start_year, start_month, 1)
     run_id = bind_run_context(entrypoint="backfill", start_year=start_year, start_month=start_month)
+
+    months: list[tuple[int, int]] = []
+    while cur <= today:
+        months.append((cur.year, cur.month))
+        cur += relativedelta(months=1)
+
+    workers = min(BACKFILL_MAX_WORKERS, len(months)) or 1
+    log.info("backfill_start", months=len(months), workers=workers)
+
     with record_run(run_id) as metrics:
-        results = []
-        while cur <= today:
-            results.append(process_month(cur.year, cur.month, run_id=run_id))
-            cur += relativedelta(months=1)
+        results: list[dict] = []
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(process_month, y, m, run_id=run_id): (y, m)
+                for y, m in months
+            }
+            for future in as_completed(futures):
+                y, m = futures[future]
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    log.exception("backfill_month_error", year=y, month=m)
+                    results.append({"year": y, "month": m, "status": "error"})
         _summarize(results, metrics)
     return results
 

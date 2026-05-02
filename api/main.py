@@ -11,35 +11,42 @@ reverse proxy.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
-from db.database import connect, count_licitaciones, init_db
+from config import API_KEY, API_RATE_LIMIT
+from db.database import connect, count_licitaciones, fts_available, init_db, search_fts
 from observability import configure_logging, get_logger
 from scheduler.healthcheck import run_check
 
 configure_logging()
 log = get_logger(__name__)
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="Licitaciones SAP API",
     description="Acceso de solo lectura a licitaciones SAP extraídas de PLACSP.",
     version="1.0.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
     log.info("api_startup")
-    if not os.environ.get("API_KEY", "").strip():
+    if not API_KEY.strip():
         log.warning("api_key_not_configured_api_is_open")
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
-    expected = os.environ.get("API_KEY", "").strip()
+    expected = API_KEY.strip()
     if not expected:
         return
     if x_api_key != expected:
@@ -52,7 +59,9 @@ def healthz() -> dict[str, Any]:
 
 
 @app.get("/v1/licitaciones", dependencies=[Depends(require_api_key)], tags=["licitaciones"])
+@limiter.limit(API_RATE_LIMIT)
 def list_licitaciones(
+    request: Request,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     cpv_prefix: str | None = Query(None, max_length=8, pattern=r"^[0-9]{2,8}$"),
@@ -60,6 +69,19 @@ def list_licitaciones(
     min_importe: float | None = Query(None, ge=0),
     q: str | None = Query(None, max_length=120),
 ) -> dict[str, Any]:
+    # FTS fast path: use FTS5 when only 'q' is provided and FTS is available
+    use_fts = q and not cpv_prefix and not ccaa and min_importe is None and fts_available()
+    if use_fts:
+        assert q is not None  # for type narrowing
+        rows, total = search_fts(q, limit=limit, offset=offset)
+        return {
+            "count": len(rows),
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "items": rows,
+        }
+
     where: list[str] = []
     where_params: list[Any] = []
     if cpv_prefix:
@@ -95,7 +117,8 @@ def list_licitaciones(
 
 
 @app.get("/v1/runs", dependencies=[Depends(require_api_key)], tags=["meta"])
-def list_runs(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
+@limiter.limit(API_RATE_LIMIT)
+def list_runs(request: Request, limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
     with connect() as c:
         cur = c.execute(
             "SELECT run_id, started_at, ended_at, status, "

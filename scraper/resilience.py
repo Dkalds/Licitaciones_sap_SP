@@ -34,7 +34,7 @@ def _is_transient(exc: BaseException) -> bool:
         resp = getattr(exc, "response", None)
         if resp is None:
             return True
-        return 500 <= resp.status_code < 600 or resp.status_code == 429
+        return bool(500 <= resp.status_code < 600 or resp.status_code == 429)
     return False
 
 

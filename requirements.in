@@ -8,9 +8,11 @@ python-dateutil>=2.8.2,<3
 tenacity>=8.2.0,<10
 openpyxl>=3.1.0,<4
 libsql>=0.1.0,<1
-python-dotenv>=1.0.0,<2
+python-dotenv>=1.0.0,<2\npydantic-settings>=2.0.0,<3
 streamlit-aggrid>=0.3.3,<1
 structlog>=24.1.0,<26
 pybreaker>=1.0.0,<2
 fastapi>=0.110.0,<1
+slowapi>=0.1.9,<1
+reportlab>=4.0,<5
 uvicorn>=0.30.0,<1

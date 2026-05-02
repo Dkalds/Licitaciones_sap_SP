@@ -7,10 +7,9 @@ manualmente o investigar patrones de fallo.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
-from db.database import connect
+from db.database import connect, now_utc_iso
 from observability.logging import get_logger
 
 log = get_logger(__name__)
@@ -39,7 +38,7 @@ def record_failure(
                     type(error).__name__,
                     str(error)[:2000],
                     payload_ref,
-                    datetime.utcnow().isoformat(),
+                    now_utc_iso(),
                 ),
             )
     except Exception as e:
@@ -64,7 +63,7 @@ def mark_resolved(failure_id: int) -> None:
     with connect() as c:
         c.execute(
             "UPDATE failed_extractions SET resolved_at = ? WHERE id = ?",
-            (datetime.utcnow().isoformat(), failure_id),
+            (now_utc_iso(), failure_id),
         )
 
 

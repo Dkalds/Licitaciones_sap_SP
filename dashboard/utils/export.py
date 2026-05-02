@@ -33,7 +33,7 @@ def kpis_snapshot_csv(kpis: dict[str, str], titulo: str = "Snapshot KPIs") -> by
     buf = StringIO()
     writer = csv.writer(buf, delimiter=";", quoting=csv.QUOTE_MINIMAL)
     writer.writerow([titulo])
-    writer.writerow(["Generado", pd.Timestamp.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")])
+    writer.writerow(["Generado", pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M:%S UTC")])
     writer.writerow([])
     writer.writerow(["KPI", "Valor"])
     for label, value in kpis.items():

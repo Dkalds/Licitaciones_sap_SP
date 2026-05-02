@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import os
-
 import pandas as pd
 import streamlit as st
 
+from config import DASHBOARD_CACHE_TTL
 from db.database import connect, init_db
 
 init_db()
@@ -20,12 +19,10 @@ from dashboard.classifiers import (  # noqa: E402
 )
 from dashboard.normalize import normalize_company, normalize_nif  # noqa: E402
 
-# TTL configurable vía env (default 5 min). Pon 0 para caché indefinido.
-_CACHE_TTL = int(os.environ.get("DASHBOARD_CACHE_TTL", "300"))
 
-
-@st.cache_data(ttl=_CACHE_TTL or None, show_spinner="Cargando datos…")
-def load_dataframe() -> pd.DataFrame:
+@st.cache_resource(ttl=DASHBOARD_CACHE_TTL or None)
+def _load_dataframe_shared() -> pd.DataFrame:
+    """Carga base compartida entre todas las sesiones (no copiar)."""
     with connect() as c:
         cursor = c.execute("SELECT * FROM licitaciones")
         rows = cursor.fetchall()
@@ -58,7 +55,12 @@ def load_dataframe() -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=_CACHE_TTL or None, show_spinner="Cargando adjudicaciones…")
+def load_dataframe() -> pd.DataFrame:
+    """Devuelve una copia del DataFrame base (segura para mutaciones por sesión)."""
+    return _load_dataframe_shared().copy()
+
+
+@st.cache_data(ttl=DASHBOARD_CACHE_TTL or None, show_spinner="Cargando adjudicaciones…")
 def load_adjudicaciones() -> pd.DataFrame:
     with connect() as c:
         cursor = c.execute(
@@ -117,7 +119,7 @@ def load_adjudicaciones() -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=_CACHE_TTL or None)
+@st.cache_data(ttl=DASHBOARD_CACHE_TTL or None)
 def load_extracciones() -> pd.DataFrame:
     with connect() as c:
         cursor = c.execute("SELECT * FROM extracciones ORDER BY fecha DESC")
@@ -131,6 +133,6 @@ def load_extracciones() -> pd.DataFrame:
 
 def invalidate_caches() -> None:
     """Fuerza recarga de todas las fuentes cacheadas en la próxima llamada."""
-    load_dataframe.clear()
+    _load_dataframe_shared.clear()
     load_adjudicaciones.clear()
     load_extracciones.clear()

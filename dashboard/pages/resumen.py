@@ -14,6 +14,7 @@ from dashboard.kpi_config import KPI_FORMULAS, KPI_THRESHOLDS
 from dashboard.pages._base import PageContext
 from dashboard.stats import (
     calientes_hoy,
+    compare_periods,
     hhi_concentracion,
     is_anomaly,
     kpi_sparkline_series,
@@ -24,6 +25,7 @@ from dashboard.stats import (
 )
 from dashboard.utils.export import kpis_snapshot_csv
 from dashboard.utils.format import fmt_eur
+from dashboard.utils.pdf import generate_pdf
 
 
 @guarded_render
@@ -144,7 +146,7 @@ def render(ctx: PageContext) -> None:
             th_pyme = KPI_THRESHOLDS["pct_pyme"]
             st.markdown(
                 kpi_card(
-                    "% adjudicado PYMEs",
+                    "% adjudicaciones PYMEs",
                     f"{pct_pyme:.0f}%",
                     delta="del nº de adjudicaciones",
                     delta_up=pct_pyme >= th_pyme["ok"],
@@ -236,9 +238,9 @@ def render(ctx: PageContext) -> None:
         with cS3:
             st.markdown(
                 kpi_card(
-                    "Sin competencia",
+                    "% Oferta única",
                     f"{ou:.0f}%",
-                    delta="1 sola oferta",
+                    delta="1 sola oferta recibida",
                     delta_up=ou < th_ou["ok"],
                     icon="🔒",
                     tooltip=KPI_FORMULAS["oferta_unica"],
@@ -257,7 +259,7 @@ def render(ctx: PageContext) -> None:
             "% sin competencia": f"{ou:.0f}%",
         }
         csv_bytes = kpis_snapshot_csv(snapshot, titulo="Snapshot KPIs — Resumen")
-        fname = f"kpis_resumen_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M')}.csv"
+        fname = f"kpis_resumen_{pd.Timestamp.now('UTC').strftime('%Y%m%d_%H%M')}.csv"
         st.download_button(
             "📸 Descargar snapshot KPIs (CSV)",
             data=csv_bytes,
@@ -266,8 +268,104 @@ def render(ctx: PageContext) -> None:
             help="Exporta los indicadores actuales a CSV para pegarlos en un informe.",
         )
 
+        # ── PDF Informe ejecutivo ──────────────────────────────────
+        top_pdf = (
+            df.dropna(subset=["importe"])
+            .nlargest(10, "importe")
+            [["titulo", "organo_contratacion", "importe", "estado_desc", "cpv"]]
+            .copy()
+        )
+        top_pdf["importe_fmt"] = top_pdf["importe"].apply(fmt_eur)
+        top_list = top_pdf.to_dict("records")
+
+        # Exportar charts como PNG
+        chart_imgs: list[tuple[str, bytes]] = []
+        try:
+            fig_estado = px.pie(
+                est, names="estado_desc", values="n", hole=0.55,
+                template=ctx.plotly_template,
+                color_discrete_sequence=ctx.color_sequence,
+            )
+            fig_estado.update_layout(
+                showlegend=True, height=400, width=600,
+                margin=dict(t=30, b=30, l=30, r=30),
+            )
+            chart_imgs.append(("Distribución por estado", fig_estado.to_image(format="png")))
+        except Exception:
+            pass
+
+        filtros_pdf = {}
+        if hasattr(ctx, "filters") and ctx.filters:
+            f = ctx.filters
+            if getattr(f, "rango", None):
+                filtros_pdf["Rango"] = f"{f.rango[0]} → {f.rango[-1]}"
+            if getattr(f, "estado", None):
+                filtros_pdf["Estado"] = str(f.estado)
+            if getattr(f, "ccaa", None):
+                filtros_pdf["CCAA"] = str(f.ccaa)
+
+        pdf_bytes = generate_pdf(
+            kpis=snapshot,
+            filtros=filtros_pdf,
+            top_oportunidades=top_list,
+            chart_images=chart_imgs or None,
+        )
+        pdf_fname = f"informe_ejecutivo_{pd.Timestamp.now('UTC').strftime('%Y%m%d_%H%M')}.pdf"
+        st.download_button(
+            "📄 Descargar informe ejecutivo (PDF)",
+            data=pdf_bytes,
+            file_name=pdf_fname,
+            mime="application/pdf",
+            help="Genera un PDF con KPIs, top oportunidades y gráficos.",
+        )
+
         # Silenciar lint sobre variables usadas en el ámbito pero no en render
         _ = (sp_count, sp_sum)
+
+    # ── Panel comparativa de periodos ──────────────────────────────
+    if ctx.filters.comparar and ctx.filters.rango and ctx.filters.rango_b:
+        st.markdown("---")
+        st.markdown("#### 📊 Comparativa de periodos")
+
+        ra = ctx.filters.rango
+        rb = ctx.filters.rango_b
+        label_a = f"{ra[0]} → {ra[1]}"
+        label_b = f"{rb[0]} → {rb[1]}"
+
+        comp = compare_periods(
+            ctx.df_full,
+            (pd.Timestamp(ra[0], tz="UTC"), pd.Timestamp(ra[1], tz="UTC")),
+            (pd.Timestamp(rb[0], tz="UTC"), pd.Timestamp(rb[1], tz="UTC")),
+        )
+
+        _labels = {
+            "total": "Licitaciones",
+            "importe_total": "Importe total",
+            "importe_medio": "Importe medio",
+            "organos": "Órganos únicos",
+        }
+        cols = st.columns(len(comp))
+        for col, (key, vals) in zip(cols, comp.items()):
+            with col:
+                va_str = (
+                    fmt_eur(vals["a"])
+                    if "importe" in key
+                    else f"{int(vals['a']):,}"
+                )
+                vb_str = (
+                    fmt_eur(vals["b"])
+                    if "importe" in key
+                    else f"{int(vals['b']):,}"
+                )
+                delta = vals["delta_pct"]
+                arrow = "🔺" if delta > 0 else "🔻" if delta < 0 else "▬"
+                st.metric(
+                    label=_labels.get(key, key),
+                    value=f"A: {va_str}",
+                    delta=f"B: {vb_str} ({delta:+.1f}%)",
+                    delta_color="normal",
+                    help=f"A = {label_a} | B = {label_b} {arrow}",
+                )
 
 
 def _render_banner_hoy(df: pd.DataFrame, adj: pd.DataFrame) -> None:
@@ -292,7 +390,7 @@ def _render_banner_hoy(df: pd.DataFrame, adj: pd.DataFrame) -> None:
     n_wl = len(watchlist_ids)
 
     # Nuevas últimas 24h
-    hoy = pd.Timestamp.utcnow()
+    hoy = pd.Timestamp.now("UTC")
     ult24h = df[df["fecha_publicacion"] >= (hoy - pd.Timedelta(hours=24))]
     n_24h = len(ult24h)
 

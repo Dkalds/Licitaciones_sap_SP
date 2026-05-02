@@ -6,10 +6,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
-from db.database import connect
+from db.database import connect, now_utc_iso
 
 
 @dataclass
@@ -20,6 +19,7 @@ class WatchlistEntry:
     min_importe: float | None = None
     ccaa: str | None = None
     email: str | None = None
+    user_id: int | None = None
 
 
 def add_entry(entry: WatchlistEntry) -> None:
@@ -46,8 +46,8 @@ def add_entry(entry: WatchlistEntry) -> None:
             return
         c.execute(
             "INSERT INTO watchlist_cpv "
-            "(user_key, cpv_prefix, keyword, min_importe, ccaa, email, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "(user_key, cpv_prefix, keyword, min_importe, ccaa, email, user_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 entry.user_key,
                 entry.cpv_prefix,
@@ -55,7 +55,8 @@ def add_entry(entry: WatchlistEntry) -> None:
                 entry.min_importe,
                 entry.ccaa,
                 entry.email,
-                datetime.utcnow().isoformat(),
+                entry.user_id,
+                now_utc_iso(),
             ),
         )
 
@@ -65,13 +66,23 @@ def remove_entry(entry_id: int) -> None:
         c.execute("DELETE FROM watchlist_cpv WHERE id = ?", (entry_id,))
 
 
-def list_entries(user_key: str) -> list[dict[str, Any]]:
+def list_entries(user_key: str, *, user_id: int | None = None) -> list[dict[str, Any]]:
     with connect() as c:
-        cur = c.execute(
-            "SELECT id, cpv_prefix, keyword, min_importe, ccaa, email, created_at, last_notified_at "
-            "FROM watchlist_cpv WHERE user_key = ? ORDER BY created_at DESC",
-            (user_key,),
-        )
+        if user_id is not None:
+            cur = c.execute(
+                "SELECT id, cpv_prefix, keyword, min_importe, ccaa, email, "
+                "created_at, last_notified_at, user_id "
+                "FROM watchlist_cpv WHERE user_id = ? OR user_key = ? "
+                "ORDER BY created_at DESC",
+                (user_id, user_key),
+            )
+        else:
+            cur = c.execute(
+                "SELECT id, cpv_prefix, keyword, min_importe, ccaa, email, "
+                "created_at, last_notified_at, user_id "
+                "FROM watchlist_cpv WHERE user_key = ? ORDER BY created_at DESC",
+                (user_key,),
+            )
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 

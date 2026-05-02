@@ -13,6 +13,9 @@ def _client(tmp_db, monkeypatch, *, api_key: str | None = None):
         monkeypatch.delenv("API_KEY", raising=False)
     else:
         monkeypatch.setenv("API_KEY", api_key)
+    import config as cfg
+
+    importlib.reload(cfg)
     import api.main as api_mod
 
     importlib.reload(api_mod)
