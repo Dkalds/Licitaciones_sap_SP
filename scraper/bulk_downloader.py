@@ -22,6 +22,7 @@ import requests
 from config import (
     DOWNLOADS_DIR,
     MAX_DOWNLOAD_SIZE_BYTES,
+    MAX_XML_SIZE_BYTES,
     REQUEST_DELAY_SECONDS,
     REQUEST_TIMEOUT,
     USER_AGENT,
@@ -107,5 +108,14 @@ def iter_xml_files(zip_path: Path) -> Iterator[tuple[str, bytes]]:
     with zipfile.ZipFile(zip_path) as zf:
         for name in zf.namelist():
             if name.lower().endswith(".atom") or name.lower().endswith(".xml"):
+                info = zf.getinfo(name)
+                if info.file_size > MAX_XML_SIZE_BYTES:
+                    log.warning(
+                        "zip_member_too_large",
+                        name=name,
+                        file_size=info.file_size,
+                        limit=MAX_XML_SIZE_BYTES,
+                    )
+                    continue
                 with zf.open(name) as f:
                     yield name, f.read()

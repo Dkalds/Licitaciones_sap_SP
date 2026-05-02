@@ -34,6 +34,8 @@ app = FastAPI(
 def _startup() -> None:
     init_db()
     log.info("api_startup")
+    if not os.environ.get("API_KEY", "").strip():
+        log.warning("api_key_not_configured_api_is_open")
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
@@ -59,33 +61,33 @@ def list_licitaciones(
     q: str | None = Query(None, max_length=120),
 ) -> dict[str, Any]:
     where: list[str] = []
-    params: list[Any] = []
+    where_params: list[Any] = []
     if cpv_prefix:
         where.append("cpv LIKE ?")
-        params.append(f"{cpv_prefix}%")
+        where_params.append(f"{cpv_prefix}%")
     if ccaa:
         where.append("ccaa = ?")
-        params.append(ccaa)
+        where_params.append(ccaa)
     if min_importe is not None:
         where.append("importe >= ?")
-        params.append(min_importe)
+        where_params.append(min_importe)
     if q:
-        where.append("(titulo LIKE ? OR descripcion LIKE ?)")
-        params.extend([f"%{q}%", f"%{q}%"])
-    sql = "SELECT * FROM licitaciones"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY fecha_publicacion DESC LIMIT ? OFFSET ?"
-    params.extend([limit, offset])
+        q_safe = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        where.append("(titulo LIKE ? ESCAPE '\\' OR descripcion LIKE ? ESCAPE '\\')")
+        where_params.extend([f"%{q_safe}%", f"%{q_safe}%"])
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    sql = "SELECT * FROM licitaciones" + where_sql + " ORDER BY fecha_publicacion DESC LIMIT ? OFFSET ?"
+    count_sql = "SELECT COUNT(*) FROM licitaciones" + where_sql
 
     with connect() as c:
-        cur = c.execute(sql, params)
+        filtered_total = c.execute(count_sql, where_params).fetchone()[0]
+        cur = c.execute(sql, where_params + [limit, offset])
         cols = [d[0] for d in cur.description]
         rows = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
 
     return {
         "count": len(rows),
-        "total": count_licitaciones(),
+        "total": int(filtered_total),
         "limit": limit,
         "offset": offset,
         "items": rows,

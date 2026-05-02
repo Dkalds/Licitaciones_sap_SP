@@ -56,7 +56,9 @@ def run_check(freshness_hours: int = 36, dlq_threshold: int = 50) -> dict:
             }
             try:
                 started = datetime.fromisoformat(last_run[1])
-            except ValueError:
+                if started.tzinfo is not None:
+                    started = started.replace(tzinfo=None)
+            except (ValueError, TypeError):
                 started = datetime.utcnow() - timedelta(days=365)
             age = datetime.utcnow() - started
             info["last_run_age_hours"] = round(age.total_seconds() / 3600, 1)

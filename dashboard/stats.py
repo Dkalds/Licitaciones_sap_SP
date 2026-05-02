@@ -188,9 +188,9 @@ def ventana_anticipacion(df: pd.DataFrame) -> float | None:
         return None
     fp = pd.to_datetime(df["fecha_publicacion"], errors="coerce", utc=True)
     ff = pd.to_datetime(df["fecha_fin_contrato"], errors="coerce", utc=True)
-    if hasattr(fp.dt, "tz"):
+    if fp.dt.tz is not None:
         fp = fp.dt.tz_localize(None)
-    if hasattr(ff.dt, "tz"):
+    if ff.dt.tz is not None:
         ff = ff.dt.tz_localize(None)
     diff = (ff - fp).dt.days
     valid = diff[diff > 0]
