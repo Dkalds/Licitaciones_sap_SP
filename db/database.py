@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
@@ -163,6 +164,13 @@ def _get_conn() -> Any:
     if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN:
         conn = libsql.connect(TURSO_DATABASE_URL, auth_token=TURSO_AUTH_TOKEN)
     else:
+        # En CI (GitHub Actions y similares) NUNCA usar SQLite local: el FS es
+        # efímero y los datos se perderían silenciosamente. Forzar fallo ruidoso.
+        if os.environ.get("CI", "").lower() in ("1", "true", "yes"):
+            raise RuntimeError(
+                "Faltan TURSO_DATABASE_URL / TURSO_AUTH_TOKEN en el entorno CI. "
+                "Configura los secrets del repositorio antes de ejecutar el pipeline."
+            )
         conn = libsql.connect(str(DB_PATH))
     _local.conn = conn
     return conn
