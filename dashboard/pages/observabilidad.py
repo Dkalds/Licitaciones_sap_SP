@@ -38,12 +38,12 @@ def render(ctx: PageContext) -> None:
         empty_state("📉", "Sin runs registrados", "Ejecuta el pipeline para ver métricas aquí.")
         return
 
-    runs["started_at"] = pd.to_datetime(runs["started_at"], errors="coerce")
-    runs["ended_at"] = pd.to_datetime(runs["ended_at"], errors="coerce")
+    runs["started_at"] = pd.to_datetime(runs["started_at"], errors="coerce", utc=True)
+    runs["ended_at"] = pd.to_datetime(runs["ended_at"], errors="coerce", utc=True)
     runs["duration_s"] = (runs["duration_ms"] / 1000).round(1)
 
     last = runs.iloc[0]
-    hoy = pd.Timestamp.now("UTC").tz_localize(None)
+    hoy = pd.Timestamp.now("UTC")
     last7 = runs[runs["started_at"] >= (hoy - pd.Timedelta(days=7))]
     last30 = runs[runs["started_at"] >= (hoy - pd.Timedelta(days=30))]
     prev_week = runs[
@@ -196,8 +196,11 @@ def _render_calidad_dato(ctx: PageContext, last_run, runs) -> None:
     # Antigüedad del último scrape en horas
     antiguedad_h = 0.0
     if pd.notna(last_run["started_at"]):
-        hoy = pd.Timestamp.now("UTC").tz_localize(None)
-        delta = hoy - last_run["started_at"]
+        hoy = pd.Timestamp.now("UTC")
+        started = pd.Timestamp(last_run["started_at"])
+        if started.tzinfo is None:
+            started = started.tz_localize("UTC")
+        delta = hoy - started
         antiguedad_h = float(delta.total_seconds() / 3600)
 
     q1, q2, q3, q4, q5 = st.columns(5)

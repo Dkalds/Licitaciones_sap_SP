@@ -116,6 +116,7 @@ def _handle_oauth_callback() -> bool:
     st.session_state["_user_name"] = userinfo.get("name", "")
 
     # No marcar authenticated aquí — check_password decide si falta contraseña
+    # (excepto si el usuario es admin — se salta la contraseña)
 
     # Registrar acceso OAuth (paso 1)
     from db.users import log_access
@@ -190,8 +191,16 @@ def check_password() -> bool:
     # Procesar callback OAuth si hay code en la URL
     if has_oauth and _handle_oauth_callback():
         if password:
-            # OAuth OK, pero falta contraseña → marcar paso 1 completo
-            st.session_state["_oauth_step_done"] = True
+            # Si el usuario es admin, saltar la contraseña
+            from db.users import is_admin as _is_admin
+
+            user_id = st.session_state.get("_user_id")
+            if user_id and _is_admin(user_id):
+                st.session_state["authenticated"] = True
+                st.session_state["_auth_method"] = "oauth"
+            else:
+                # OAuth OK, pero falta contraseña → marcar paso 1 completo
+                st.session_state["_oauth_step_done"] = True
         else:
             # Solo OAuth, sin contraseña → autenticado
             st.session_state["authenticated"] = True

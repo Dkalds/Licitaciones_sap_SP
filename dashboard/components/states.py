@@ -139,6 +139,9 @@ def guarded_render(fn: Callable) -> Callable:
         try:
             return fn(*args, **kwargs)
         except Exception as exc:
+            # Loggear siempre el traceback completo al stdout para diagnóstico
+            # local (Streamlit silencia las excepciones de páginas decoradas).
+            traceback.print_exc()
             error_state(
                 f"Error al renderizar '{fn.__name__}'",
                 "Ha ocurrido un problema inesperado en esta sección.",

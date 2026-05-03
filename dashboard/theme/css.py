@@ -76,9 +76,15 @@ def build_css(t: Tokens = TOKENS) -> str:
   /* Oculta hamburguesa, "Made with Streamlit", botón Deploy, navegación
      multipage nativa y header superior. La app provee su propio header. */
   #MainMenu {{ visibility: hidden !important; }}
-  header[data-testid="stHeader"] {{ display: none !important; height: 0 !important; }}
+  header[data-testid="stHeader"] {{
+    background: transparent !important;
+  }}
+  /* Oculta toolbar (deploy, menú) pero mantiene el botón de expandir sidebar */
+  [data-testid="stToolbar"] {{ visibility: hidden !important; }}
+  [data-testid="stExpandSidebarButton"] {{ visibility: visible !important; }}
+  [data-testid="stAppDeployButton"] {{ display: none !important; }}
+  [data-testid="stMainMenu"] {{ display: none !important; }}
   footer {{ visibility: hidden !important; height: 0 !important; }}
-  div[data-testid="stToolbar"] {{ display: none !important; }}
   div[data-testid="stDecoration"] {{ display: none !important; }}
   div[data-testid="stStatusWidget"] {{ display: none !important; }}
   [data-testid="stSidebarNav"] {{ display: none !important; }}

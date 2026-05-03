@@ -166,6 +166,11 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_access_log_time ON access_log(logged_in_at);
         """,
     ),
+    (
+        10,
+        "users_is_admin",
+        "",  # handled programmatically
+    ),
 ]
 
 # Columnas de la migración 6 — se aplican de forma programática porque
@@ -225,6 +230,9 @@ def apply_pending(conn: Any) -> list[int]:
         # Migración 8: user_id column on watchlist_cpv
         if version == 8:
             _apply_v8_user_id(conn)
+        # Migración 10: is_admin column on users
+        if version == 10:
+            _apply_v10_is_admin(conn)
         conn.execute(
             "INSERT INTO schema_version (version, description, applied_at) VALUES (?, ?, ?)",
             (version, description, datetime.now(timezone.utc).isoformat()),
@@ -315,3 +323,15 @@ def _apply_v8_user_id(conn: Any) -> None:
         )
     # Index for user_id lookups (idempotent via IF NOT EXISTS)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wl_user_id ON watchlist_cpv(user_id)")
+
+
+def _apply_v10_is_admin(conn: Any) -> None:
+    """Añade columna is_admin a users si no existe (idempotente)."""
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'"
+    ).fetchone()
+    if not exists:
+        return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "is_admin" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")

@@ -19,14 +19,14 @@ from dashboard.auth import check_password
 from dashboard.components.layout import (render_footer, render_header,
                                           render_sidebar_brand)
 from dashboard.components.navigation import (active_filters_chips, breadcrumb,
-                                              sub_nav)
+                                              sub_nav, top_nav)
 from dashboard.components.states import empty_state
 from dashboard.data_loader import load_dataframe
 from dashboard.filters import FiltersState, apply_filters, render_sidebar_filters
 from dashboard.kpi_bar import render_kpi_bar
 from dashboard.pages import PAGE_REGISTRY
 from dashboard.pages._base import PageContext
-from dashboard.router import SECTIONS
+from dashboard.router import SECTION_ICONS, SECTIONS
 from dashboard.theme import (COMPACT_DENSITY_CSS, TOKENS, build_css,
                               get_color_sequence, register_plotly_template)
 
@@ -91,19 +91,19 @@ if "_qp_loaded" not in st.session_state:
     if init_filters.rango:
         st.session_state["fs_rango"] = init_filters.rango
     st.session_state["_qp_loaded"] = True
-# ── Sidebar: navegación + filtros ─────────────────────────────────────────
+# ── Sidebar: filtros (la navegación principal vive en el top-nav) ────────
 with st.sidebar:
     render_sidebar_brand()
-    section = st.radio(
-        "nav",
-        list(SECTIONS.keys()),
-        label_visibility="collapsed",
-        key="nav_section",
-    )
-    st.divider()
     filters: FiltersState = render_sidebar_filters(df_full)
     st.divider()
     compact = st.toggle("Modo compacto", key="density_compact", value=False)
+
+# ── Top-nav: secciones principales ───────────────────────────────────────
+section = top_nav(
+    list(SECTIONS.keys()),
+    icons=SECTION_ICONS,
+    key="nav_section",
+)
 
 # ── Inyectar override de densidad compacta ────────────────────────────────
 if compact:
