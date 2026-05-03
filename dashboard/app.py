@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Aseguramos que la raíz del proyecto esté en sys.path para que tanto
+# `dashboard.*` como `config` sean importables al ejecutarse en Streamlit
+# Cloud (que añade el directorio del script — dashboard/ — al sys.path,
+# no la raíz del repo).
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 import streamlit as st
 
 from dashboard.auth import check_password
