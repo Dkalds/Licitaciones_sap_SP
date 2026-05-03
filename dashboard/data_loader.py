@@ -6,10 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from config import DASHBOARD_CACHE_TTL
-from db.database import connect, init_db
-
-init_db()
-from dashboard.classifiers import (  # noqa: E402
+from dashboard.classifiers import (
     cpv_label,
     detect_modules,
     detect_project_type,
@@ -17,12 +14,14 @@ from dashboard.classifiers import (  # noqa: E402
     nuts_to_ccaa,
     tipo_contrato_label,
 )
-from dashboard.normalize import normalize_company, normalize_nif  # noqa: E402
+from dashboard.normalize import normalize_company, normalize_nif
+from db.database import connect, init_db
 
 
 @st.cache_resource(ttl=DASHBOARD_CACHE_TTL or None)
 def _load_dataframe_shared() -> pd.DataFrame:
     """Carga base compartida entre todas las sesiones (no copiar)."""
+    init_db()
     with connect() as c:
         cursor = c.execute("SELECT * FROM licitaciones")
         rows = cursor.fetchall()

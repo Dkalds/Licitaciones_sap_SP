@@ -154,35 +154,40 @@ def render(ctx: PageContext) -> None:
     top_adj = k["top_adjudicatario"]
     top_adj_imp = float(k["top_adj_importe"] or 0.0)
 
-    cK1, cK2, cK3, cK4 = st.columns(4)
-    cK1.markdown(
-        kpi_card("Licitaciones", f"{n_lics:,}", icon="📋"),
-        unsafe_allow_html=True,
-    )
-    cK2.markdown(
-        kpi_card(
-            "Importe total",
-            fmt_eur(imp_total),
-            delta=f"medio {fmt_eur(imp_medio)}",
-            icon="💰",
-        ),
-        unsafe_allow_html=True,
-    )
-    cK3.markdown(
-        kpi_card(
-            "% Adjudicadas",
-            f"{pct_adj:.0f}%",
-            delta="del total del órgano",
-            delta_up=pct_adj >= 50,
-            icon="✅",
-        ),
-        unsafe_allow_html=True,
-    )
     lt_txt = f"{float(lt_raw):.0f} d" if isinstance(lt_raw, (int, float)) else "—"
-    cK4.markdown(
-        kpi_card("Lead time mediano", lt_txt, delta="pub → adj", icon="⏱"),
-        unsafe_allow_html=True,
-    )
+
+    cK1, cK2, cK3, cK4 = st.columns(4)
+    with cK1:
+        st.markdown(
+            kpi_card("Licitaciones", f"{n_lics:,}", icon="📋"),
+            unsafe_allow_html=True,
+        )
+    with cK2:
+        st.markdown(
+            kpi_card(
+                "Importe total",
+                fmt_eur(imp_total),
+                delta=f"medio {fmt_eur(imp_medio)}",
+                icon="💰",
+            ),
+            unsafe_allow_html=True,
+        )
+    with cK3:
+        st.markdown(
+            kpi_card(
+                "% Adjudicadas",
+                f"{pct_adj:.0f}%",
+                delta="del total del órgano",
+                delta_up=pct_adj >= 50,
+                icon="✅",
+            ),
+            unsafe_allow_html=True,
+        )
+    with cK4:
+        st.markdown(
+            kpi_card("Lead time mediano", lt_txt, delta="pub → adj", icon="⏱"),
+            unsafe_allow_html=True,
+        )
 
     if top_adj:
         st.caption(f"🏆 **Top adjudicatario histórico:** {top_adj} ({fmt_eur(top_adj_imp)})")
@@ -190,7 +195,7 @@ def render(ctx: PageContext) -> None:
     # ── Mini-charts: top adjudicatarios + estacionalidad ──────────────────
     cC1, cC2 = st.columns(2)
     with cC1:
-        st.markdown("**Top 10 adjudicatarios**")
+        st.markdown("#### Top 10 adjudicatarios")
         if not sub_adj.empty and "nombre_canonico" in sub_adj.columns:
             top_adj_df = (
                 sub_adj.groupby("nombre_canonico")["importe_adjudicado"]
@@ -222,7 +227,7 @@ def render(ctx: PageContext) -> None:
             st.info("Sin adjudicaciones registradas para este órgano.")
 
     with cC2:
-        st.markdown("**Estacionalidad mensual (histórica)**")
+        st.markdown("#### Estacionalidad mensual")
         if "fecha_publicacion" in sub.columns and sub["fecha_publicacion"].notna().any():
             season = (
                 sub.dropna(subset=["fecha_publicacion"])

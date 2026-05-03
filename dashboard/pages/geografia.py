@@ -40,36 +40,39 @@ def render(ctx: PageContext) -> None:
 
         kG1, kG2, kG3 = st.columns(3)
         if activa:
-            kG1.markdown(
-                kpi_card(
-                    "CCAA más activa",
-                    activa["ccaa"][:20],
-                    delta=f"{activa['n']:,} licitaciones · {fmt_eur(activa['importe'])}",
-                    icon="🗺️",
-                ),
-                unsafe_allow_html=True,
-            )
+            with kG1:
+                st.markdown(
+                    kpi_card(
+                        "CCAA más activa",
+                        activa["ccaa"][:20],
+                        delta=f"{activa['n']:,} licitaciones · {fmt_eur(activa['importe'])}",
+                        icon="🗺️",
+                    ),
+                    unsafe_allow_html=True,
+                )
         if ticket_top is not None and not ticket_top.empty:
             t_row = ticket_top.iloc[0]
-            kG2.markdown(
+            with kG2:
+                st.markdown(
+                    kpi_card(
+                        "CCAA mayor ticket",
+                        str(t_row["ccaa"])[:20],
+                        delta=f"Ticket medio {fmt_eur(t_row['ticket'])}",
+                        icon="💎",
+                    ),
+                    unsafe_allow_html=True,
+                )
+        with kG3:
+            st.markdown(
                 kpi_card(
-                    "CCAA mayor ticket",
-                    str(t_row["ccaa"])[:20],
-                    delta=f"Ticket medio {fmt_eur(t_row['ticket'])}",
-                    icon="💎",
+                    "Concentración top-3",
+                    f"{conc_top3:.0f}%",
+                    delta="del importe total",
+                    delta_up=conc_top3 < 60,
+                    icon="📍",
                 ),
                 unsafe_allow_html=True,
             )
-        kG3.markdown(
-            kpi_card(
-                "Concentración top-3",
-                f"{conc_top3:.0f}%",
-                delta="del importe total",
-                delta_up=conc_top3 < 60,
-                icon="📍",
-            ),
-            unsafe_allow_html=True,
-        )
 
         st.markdown("")
 

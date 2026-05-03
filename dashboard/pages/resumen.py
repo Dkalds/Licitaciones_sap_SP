@@ -189,7 +189,7 @@ def render(ctx: PageContext) -> None:
             )
 
         # ── Salud competitiva del mercado ─────────────────────────
-        st.markdown("#### Salud competitiva")
+        st.subheader("Salud competitiva")
         cS1, cS2, cS3 = st.columns(3)
 
         # Lead time — adj_r ya contiene fecha_publicacion (JOIN en load_adjudicaciones).
@@ -324,8 +324,8 @@ def render(ctx: PageContext) -> None:
 
     # ── Panel comparativa de periodos ──────────────────────────────
     if ctx.filters.comparar and ctx.filters.rango and ctx.filters.rango_b:
-        st.markdown("---")
-        st.markdown("#### 📊 Comparativa de periodos")
+        st.divider()
+        st.subheader("📊 Comparativa de periodos")
 
         ra = ctx.filters.rango
         rb = ctx.filters.rango_b
@@ -411,7 +411,7 @@ def _render_banner_hoy(df: pd.DataFrame, adj: pd.DataFrame) -> None:
     # YoY corto para segundo KPI
     _, _, pct_n_30 = yoy_delta(df, col="importe", agg="count", days=30)
 
-    st.markdown("#### Para hoy")
+    st.subheader("Para hoy")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.markdown(

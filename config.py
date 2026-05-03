@@ -43,10 +43,6 @@ class Settings(BaseSettings):
     TURSO_AUTH_TOKEN: str = ""
     TURSO_LOCAL_DB: Path | None = None
 
-    # ── API ──────────────────────────────────────────────────────────────
-    API_KEY: str = ""
-    API_RATE_LIMIT: str = "60/minute"
-
     # ── Observabilidad ───────────────────────────────────────────────────
     LOG_FORMAT: str = ""
     ALERT_MIN_LEVEL: str = "warn"
@@ -123,8 +119,6 @@ OAUTH_REDIRECT_URI = _settings.OAUTH_REDIRECT_URI
 TURSO_DATABASE_URL = _settings.TURSO_DATABASE_URL
 TURSO_AUTH_TOKEN = _settings.TURSO_AUTH_TOKEN
 TURSO_LOCAL_DB = _settings.TURSO_LOCAL_DB  # type: ignore[assignment]
-API_KEY = _settings.API_KEY
-API_RATE_LIMIT = _settings.API_RATE_LIMIT
 LOG_FORMAT = _settings.LOG_FORMAT
 ALERT_MIN_LEVEL = _settings.ALERT_MIN_LEVEL
 ALERT_EMAIL_TO = _settings.ALERT_EMAIL_TO

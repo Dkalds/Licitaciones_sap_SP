@@ -10,6 +10,11 @@ from db.database import connect
 
 
 def load_dataframe() -> pd.DataFrame:
+    """Carga ligera de licitaciones (sin enriquecimiento del dashboard).
+
+    Delega en la capa de BD directamente. Para la versión enriquecida con
+    clasificadores y caché Streamlit, usar ``dashboard.data_loader.load_dataframe``.
+    """
     with connect() as c:
         cursor = c.execute("SELECT * FROM licitaciones")
         rows = cursor.fetchall()

@@ -10,6 +10,10 @@ from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from typing import Any
 
+import libsql
+
+from config import DB_PATH, HISTORY_TRACKED_FIELDS, TURSO_AUTH_TOKEN, TURSO_DATABASE_URL
+
 
 def now_utc() -> datetime:
     """Devuelve datetime actual en UTC (aware). Reemplaza datetime.utcnow()."""
@@ -19,10 +23,6 @@ def now_utc() -> datetime:
 def now_utc_iso() -> str:
     """ISO 8601 del instante actual en UTC."""
     return now_utc().isoformat()
-
-import libsql
-
-from config import DB_PATH, HISTORY_TRACKED_FIELDS, TURSO_AUTH_TOKEN, TURSO_DATABASE_URL
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS licitaciones (

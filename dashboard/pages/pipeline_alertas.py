@@ -83,33 +83,37 @@ def render(ctx: PageContext) -> None:
     # ── KPIs ─────────────────────────────────────────────────────
     en_ventana = oport[oport["relicit_inicio"] <= hoy_rv]
     kv1, kv2, kv3, kv4 = st.columns(4)
-    kv1.markdown(
-        kpi_card(
-            "Oportunidades detectadas",
-            f"{len(oport):,}",
-            delta=f"próx. {rv_horizonte} meses",
-            icon="🎯",
-        ),
-        unsafe_allow_html=True,
-    )
-    kv2.markdown(
-        kpi_card("Importe en juego", fmt_eur(oport["importe"].sum(skipna=True)), icon="💰"),
-        unsafe_allow_html=True,
-    )
-    kv3.markdown(
-        kpi_card(
-            "Ya en ventana de alerta",
-            f"{len(en_ventana):,}",
-            delta="actuar ahora",
-            delta_up=False,
-            icon="🔴",
-        ),
-        unsafe_allow_html=True,
-    )
-    kv4.markdown(
-        kpi_card("Importe en ventana", fmt_eur(en_ventana["importe"].sum(skipna=True)), icon="🚨"),
-        unsafe_allow_html=True,
-    )
+    with kv1:
+        st.markdown(
+            kpi_card(
+                "Oportunidades detectadas",
+                f"{len(oport):,}",
+                delta=f"próx. {rv_horizonte} meses",
+                icon="🎯",
+            ),
+            unsafe_allow_html=True,
+        )
+    with kv2:
+        st.markdown(
+            kpi_card("Importe en juego", fmt_eur(oport["importe"].sum(skipna=True)), icon="💰"),
+            unsafe_allow_html=True,
+        )
+    with kv3:
+        st.markdown(
+            kpi_card(
+                "Ya en ventana de alerta",
+                f"{len(en_ventana):,}",
+                delta="actuar ahora",
+                delta_up=False,
+                icon="🔴",
+            ),
+            unsafe_allow_html=True,
+        )
+    with kv4:
+        st.markdown(
+            kpi_card("Importe en ventana", fmt_eur(en_ventana["importe"].sum(skipna=True)), icon="🚨"),
+            unsafe_allow_html=True,
+        )
 
     # ── KPIs de riesgo y tipología del pipeline ──────────────────────
     riesgo = risk_flags(oport, adj_rv) if not oport.empty else pd.DataFrame()
@@ -126,36 +130,40 @@ def render(ctx: PageContext) -> None:
 
     pct_relicit = ratio_relicitacion(oport, adj_rv)
 
-    kR1, kR2, kR3 = st.columns(3)
-    kR1.markdown(
-        kpi_card(
-            "Riesgo alto",
-            f"{n_riesgo_alto:,}",
-            delta="≥2 flags activos",
-            delta_up=False,
-            icon="⚠️",
-        ),
-        unsafe_allow_html=True,
-    )
-    kR2.markdown(
-        kpi_card(
-            "% Importe con riesgo",
-            f"{pct_imp_riesgo:.0f}%",
-            delta="al menos 1 flag",
-            delta_up=pct_imp_riesgo < 30,
-            icon="🛡",
-        ),
-        unsafe_allow_html=True,
-    )
-    kR3.markdown(
-        kpi_card(
-            "% Re-licitaciones",
-            f"{pct_relicit:.0f}%",
-            delta="con ganador previo conocido",
-            icon="🔄",
-        ),
-        unsafe_allow_html=True,
-    )
+    st.subheader("Indicadores de riesgo")
+    kR1, kR2, kR3, _kR4 = st.columns(4)
+    with kR1:
+        st.markdown(
+            kpi_card(
+                "Riesgo alto",
+                f"{n_riesgo_alto:,}",
+                delta="≥2 flags activos",
+                delta_up=False,
+                icon="⚠️",
+            ),
+            unsafe_allow_html=True,
+        )
+    with kR2:
+        st.markdown(
+            kpi_card(
+                "% Importe con riesgo",
+                f"{pct_imp_riesgo:.0f}%",
+                delta="al menos 1 flag",
+                delta_up=pct_imp_riesgo < 30,
+                icon="🛡",
+            ),
+            unsafe_allow_html=True,
+        )
+    with kR3:
+        st.markdown(
+            kpi_card(
+                "% Re-licitaciones",
+                f"{pct_relicit:.0f}%",
+                delta="con ganador previo conocido",
+                icon="🔄",
+            ),
+            unsafe_allow_html=True,
+        )
 
     st.markdown("")
 

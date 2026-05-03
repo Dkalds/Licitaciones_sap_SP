@@ -15,7 +15,6 @@ periódica.
 | `ALERT_EMAIL_TO`           | Destinatario de alertas por email | Al cambiar cuenta    | Maintainer | GitHub Secrets + `.env` |
 | `ALERT_SMTP_USER`          | Cuenta remitente Gmail            | Al cambiar cuenta    | Maintainer | GitHub Secrets + `.env` |
 | `ALERT_SMTP_PASSWORD`      | App Password de Gmail (16 chars)  | 90 días              | Maintainer | GitHub Secrets + `.env` |
-| `API_KEY`                  | Header `X-API-Key` de la API REST | 90 días  | Maintainer  | Servicio consumidor + env   |
 
 ## Procedimiento de rotación
 
@@ -33,12 +32,6 @@ periódica.
 2. Actualizar secret en Streamlit Cloud / servidor y en `.env` local.
 3. Si hay usuarios pegando el hash en compartidos, rotarlo también.
 4. Comunicar a los usuarios vía canal interno antes de la hora H.
-
-### API key
-
-1. Generar: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
-2. Actualizar `API_KEY` en el despliegue y en los clientes autorizados.
-3. Revocar la antigua reiniciando el servicio con la nueva.
 
 ## Workflow de recordatorio automatizado
 
@@ -63,8 +56,6 @@ los secretos cuando lleven más de 90 días.
 
 - Dashboard: HMAC `compare_digest` para password, rate-limit progresivo
   (2ⁿ backoff) tras 3 intentos fallidos, sesión limitada a 8h.
-- API REST: header `X-API-Key` requerido cuando `API_KEY` está definida. Los
-  query params se validan con Pydantic (longitud, regex) para impedir inyección.
 - SQL: todas las queries usan parámetros posicionales. Los nombres de columna se
   validan contra regex `^[a-zA-Z_]\w*$` antes de usarse en `ALTER TABLE`.
 - XML: lxml con `resolve_entities=False`, `no_network=True` para prevenir XXE.

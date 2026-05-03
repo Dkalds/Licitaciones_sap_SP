@@ -1,16 +1,17 @@
 """Generador del bloque `<style>` inyectado en Streamlit.
 
 `build_css(tokens)` devuelve la cadena `<style>…</style>` completa incluyendo:
-- Estilos base (Fase 1)
+- E- Estilos base (Fase 1)
 - Shimmer animation para loading skeletons (Fase 3)
 - Media queries responsive 1024 / 640 px (Fase 3)
 - prefers-reduced-motion (Fase 3)
 - Focus-visible ring y skip-to-content (Fase 4)
 """
-
 from __future__ import annotations
 
 from dashboard.theme.tokens import TOKENS, Tokens
+
+COMPACT_DENSITY_CSS = "<style>:root { --density: 0.78; }</style>"
 
 
 def build_css(t: Tokens = TOKENS) -> str:
@@ -43,6 +44,8 @@ def build_css(t: Tokens = TOKENS) -> str:
   }}
   h1 {{ font-size: {ty.size_xl} !important; }}
   h2 {{ font-size: {ty.size_lg} !important; color: {c.text_secondary} !important; }}
+  h3 {{ font-size: {ty.size_md} !important; }}
+  h4 {{ font-size: {ty.size_sm} !important; color: {c.text_secondary} !important; }}
 
   /* ── Ocultar navegación nativa multipage de Streamlit ────────────── */
   [data-testid="stSidebarNav"] {{ display: none !important; }}
@@ -58,6 +61,33 @@ def build_css(t: Tokens = TOKENS) -> str:
   }}
   section[data-testid="stSidebar"] > div {{ padding-top: {t.spacing.lg}; }}
 
+  /* ── Layout: column gap & vertical alignment ─────────────────────── */
+  /* Asegura que todas las columnas de un mismo bloque horizontal tengan la
+     misma altura (cards alineadas) y un gap uniforme entre ellas. */
+  [data-testid="stHorizontalBlock"] {{
+    gap: calc(14px * var(--density)) !important;
+    align-items: stretch !important;
+  }}
+  [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+    display: flex;
+    flex-direction: column;
+  }}
+  /* Que los hijos directos (markdown con la card) ocupen toda la altura */
+  [data-testid="stHorizontalBlock"] > [data-testid="column"] > div {{
+    height: 100%;
+  }}
+  [data-testid="stHorizontalBlock"] > [data-testid="column"] [data-testid="stMarkdownContainer"] {{
+    height: 100%;
+  }}
+
+  /* Espaciado consistente de cabeceras de sección dentro de la página */
+  .block-container h2 {{ margin-top: calc(28px * var(--density)) !important; margin-bottom: calc(10px * var(--density)) !important; }}
+  .block-container h3 {{ margin-top: calc(20px * var(--density)) !important; margin-bottom: calc(6px * var(--density)) !important; }}
+  .block-container h4 {{ margin-top: calc(14px * var(--density)) !important; margin-bottom: calc(4px * var(--density)) !important; }}
+
+  /* Margen inferior consistente para gráficos Plotly */
+  [data-testid="stPlotlyChart"] {{ margin-bottom: calc(8px * var(--density)); }}
+
   /* ── KPI Cards ────────────────────────────────────────────────────── */
   .kpi-card {{
     background: {c.bg_elev_1};
@@ -67,31 +97,54 @@ def build_css(t: Tokens = TOKENS) -> str:
     padding: calc(18px * var(--density)) calc(22px * var(--density));
     box-shadow: {t.shadows.md};
     transition: border-color 0.2s, transform 0.15s;
+    /* Layout interno consistente: label arriba, value medio, delta abajo. */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    min-height: calc(118px * var(--density));
+    position: relative;
+    overflow: hidden;
   }}
   .kpi-card:hover {{ border-color: {c.accent_primary}; transform: translateY(-1px); }}
   .kpi-card .label {{
     color: {c.text_muted}; font-size: {ty.size_xs}; font-weight: {ty.weight_medium};
     text-transform: uppercase; letter-spacing: {ty.letter_kpi_label};
     margin-bottom: calc(6px * var(--density));
+    /* Truncar a 2 líneas para evitar saltos de altura entre cards. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 1.8em;
   }}
   .kpi-card .value {{
     color: {c.text_value}; font-size: {ty.size_2xl}; font-weight: {ty.weight_bold};
     line-height: 1.1; letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }}
-  .kpi-card .delta {{ font-size: 0.76rem; margin-top: calc(6px * var(--density)); font-weight: {ty.weight_medium}; }}
+  .kpi-card .delta {{
+    font-size: 0.76rem;
+    margin-top: calc(6px * var(--density));
+    font-weight: {ty.weight_medium};
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 1.05em;
+  }}
   .kpi-card .delta.up {{ color: {c.accent_primary}; }}
   .kpi-card .delta.down {{ color: {c.danger}; }}
-  .kpi-card .icon {{ font-size: 1rem; opacity: 0.35; float: right; }}
+  .kpi-card .icon {{
+    font-size: 1rem; opacity: 0.35;
+    position: absolute; top: calc(14px * var(--density)); right: calc(16px * var(--density));
+  }}
+  .kpi-card .sparkline-wrap {{ margin-top: calc(4px * var(--density)); min-height: 24px; }}
   .kpi-card .anomaly-badge {{
-    float: right; margin-right: 6px; font-size: 0.9rem;
-    color: {c.danger}; cursor: help; line-height: 1;
+    position: absolute; top: calc(14px * var(--density)); right: calc(40px * var(--density));
+    font-size: 0.85rem; color: {c.danger};
   }}
-  .kpi-card .sparkline-wrap {{
-    margin-top: calc(6px * var(--density)); line-height: 0;
-    opacity: 0.85;
-  }}
-  .kpi-card .sparkline {{ display: block; }}
-  .kpi-card[title] {{ cursor: help; }}
 
   /* ── Top cards ────────────────────────────────────────────────────── */
   .top-card {{
@@ -100,13 +153,30 @@ def build_css(t: Tokens = TOKENS) -> str:
     border-left: 3px solid {c.accent_primary};
     border-radius: {ra.md};
     padding: calc(14px * var(--density)) calc(18px * var(--density));
-    margin-bottom: calc(8px * var(--density));
+    margin-bottom: calc(10px * var(--density));
     transition: border-color 0.15s;
+    /* Altura mínima para que un listado de top-cards tenga ritmo visual. */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: calc(96px * var(--density));
   }}
   .top-card:hover {{ border-color: {c.border_hover}; border-left-color: {c.accent_primary_hover}; }}
   .top-card .amount {{ font-size: 1.25rem; font-weight: {ty.weight_bold}; color: {c.accent_primary}; letter-spacing: -0.01em; }}
-  .top-card .title {{ font-size: 0.88rem; color: {c.text_card_title}; margin: 4px 0; line-height: 1.35; }}
-  .top-card .meta {{ font-size: 0.74rem; color: {c.text_muted}; }}
+  .top-card .title {{
+    font-size: 0.88rem; color: {c.text_card_title}; margin: 4px 0; line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }}
+  .top-card .meta {{
+    font-size: 0.74rem; color: {c.text_muted};
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }}
 
   /* ── Breadcrumb ───────────────────────────────────────────────────── */
   .bc {{ font-size: {ty.size_sm}; margin-bottom: 2px; }}
@@ -173,21 +243,11 @@ def build_css(t: Tokens = TOKENS) -> str:
       flex: 1 1 100% !important;
       min-width: 100% !important;
     }}
-    /* Reducir tamaño de charts en mobile */
-    .js-plotly-plot {{ max-height: 380px !important; }}
-    .kpi-card .value {{ font-size: 1.25rem; }}
-    h1 {{ font-size: 1.15rem !important; }}
-    .bc {{ font-size: 0.72rem; }}
-    .top-card .amount {{ font-size: 1.05rem; }}
+    /* Reducir altura mínima de KPI en mobile para evitar huecos. */
+    .kpi-card {{ min-height: auto; }}
   }}
 
-  /* ── Focus visible — accesibilidad WCAG AA ─────────────────────────── */
-  *:focus-visible {{
-    outline: 2px solid {c.accent_primary};
-    outline-offset: 2px;
-  }}
-
-  /* ── Skip-to-content ──────────────────────────────────────────────── */
+  /* ── Skip-link (accesibilidad) ────────────────────────────────────── */
   .skip-link {{
     position: absolute;
     left: -9999px;
