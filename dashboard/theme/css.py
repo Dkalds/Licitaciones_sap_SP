@@ -1,16 +1,19 @@
 """Generador del bloque `<style>` inyectado en Streamlit.
 
 `build_css(tokens)` devuelve la cadena `<style>…</style>` completa incluyendo:
-- E- Estilos base (Fase 1)
+- Estilos base (Fase 1)
 - Shimmer animation para loading skeletons (Fase 3)
 - Media queries responsive 1024 / 640 px (Fase 3)
 - prefers-reduced-motion (Fase 3)
 - Focus-visible ring y skip-to-content (Fase 4)
+- Refresh visual (azul SAP, hide chrome nativo, header/chips/density real)
 """
 from __future__ import annotations
 
 from dashboard.theme.tokens import TOKENS, Tokens
 
+# Densidad compacta: reduce el coeficiente que escala paddings/gaps en cards,
+# tablas y separadores (todas las reglas usan `calc(N * var(--density))`).
 COMPACT_DENSITY_CSS = "<style>:root { --density: 0.78; }</style>"
 
 
@@ -20,19 +23,41 @@ def build_css(t: Tokens = TOKENS) -> str:
     ra = t.radii
     la = t.layout
     bp = t.breakpoints
+    sh = t.shadows
     return f"""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-  /* ── Density (Fase 6) ─────────────────────────────────────────────── */
-  :root {{ --density: 1; }}
+  /* ── Custom properties (consumibles por componentes) ─────────────── */
+  :root {{
+    --density: 1;
+    --color-bg-base: {c.bg_base};
+    --color-text-primary: {c.text_primary};
+    --color-text-secondary: {c.text_secondary};
+    --color-text-card-title: {c.text_card_title};
+    --color-text-muted: {c.text_muted};
+    --color-text-disabled: {c.text_disabled};
+    --color-accent-primary: {c.accent_primary};
+    --color-accent-primary-hover: {c.accent_primary_hover};
+    --color-success: {c.success};
+    --color-warning: {c.warning};
+    --color-danger: {c.danger};
+    --color-border-subtle: {c.border_subtle};
+    --color-border-card: {c.border_card};
+    --color-border-hover: {c.border_hover};
+    --radius-sm: {ra.sm};
+    --radius-md: {ra.md};
+    --radius-lg: {ra.lg};
+    --radius-pill: {ra.pill};
+    --shadow-focus: {sh.focus};
+  }}
 
   /* ── Base ─────────────────────────────────────────────────────────── */
   html, body, [class*="css"] {{
     font-family: {ty.family_sans} !important;
   }}
   .block-container {{
-    padding-top: {la.container_padding_top};
+    padding-top: calc({la.container_padding_top} * var(--density));
     padding-bottom: {la.container_padding_bottom};
     max-width: {la.container_max_width};
   }}
@@ -47,9 +72,19 @@ def build_css(t: Tokens = TOKENS) -> str:
   h3 {{ font-size: {ty.size_md} !important; }}
   h4 {{ font-size: {ty.size_sm} !important; color: {c.text_secondary} !important; }}
 
-  /* ── Ocultar navegación nativa multipage de Streamlit ────────────── */
+  /* ── Hide Streamlit chrome para look "producto" ───────────────────── */
+  /* Oculta hamburguesa, "Made with Streamlit", botón Deploy, navegación
+     multipage nativa y header superior. La app provee su propio header. */
+  #MainMenu {{ visibility: hidden !important; }}
+  header[data-testid="stHeader"] {{ display: none !important; height: 0 !important; }}
+  footer {{ visibility: hidden !important; height: 0 !important; }}
+  div[data-testid="stToolbar"] {{ display: none !important; }}
+  div[data-testid="stDecoration"] {{ display: none !important; }}
+  div[data-testid="stStatusWidget"] {{ display: none !important; }}
   [data-testid="stSidebarNav"] {{ display: none !important; }}
   [data-testid="stSidebarNavSeparator"] {{ display: none !important; }}
+  /* "Made with Streamlit" en builds nuevos */
+  a[href*="streamlit.io"][target="_blank"] {{ display: none !important; }}
 
   /* ── Sidebar ──────────────────────────────────────────────────────── */
   section[data-testid="stSidebar"] {{
@@ -88,6 +123,110 @@ def build_css(t: Tokens = TOKENS) -> str:
   /* Margen inferior consistente para gráficos Plotly */
   [data-testid="stPlotlyChart"] {{ margin-bottom: calc(8px * var(--density)); }}
 
+  /* ── App header (3-zonas: brand · meta · acciones) ───────────────── */
+  .app-header {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: {t.spacing.md};
+    padding-bottom: calc(14px * var(--density));
+    margin-bottom: calc(18px * var(--density));
+    border-bottom: 1px solid {c.border_subtle};
+  }}
+  .app-header .ah-title {{
+    font-size: {ty.size_xl};
+    font-weight: {ty.weight_semibold};
+    letter-spacing: {ty.letter_tight};
+    color: {c.text_primary};
+    margin: 0;
+    line-height: 1.2;
+  }}
+  .app-header .ah-subtitle {{
+    font-size: {ty.size_xs};
+    color: {c.text_muted};
+    text-transform: uppercase;
+    letter-spacing: {ty.letter_kpi_label};
+    margin-top: 2px;
+  }}
+  .app-header .ah-meta {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: {ty.size_xs};
+    color: {c.text_muted};
+    background: {c.bg_elev_1};
+    border: 1px solid {c.border_subtle};
+    padding: 5px 12px;
+    border-radius: {ra.pill};
+    white-space: nowrap;
+  }}
+  .app-header .ah-meta svg {{ flex-shrink: 0; opacity: 0.85; }}
+
+  /* ── Brand del sidebar ────────────────────────────────────────────── */
+  .brand {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 4px 0 4px;
+    margin-bottom: calc(18px * var(--density));
+  }}
+  .brand .brand-logo {{ flex-shrink: 0; line-height: 0; }}
+  .brand .brand-text {{ display: flex; flex-direction: column; line-height: 1.15; }}
+  .brand .brand-name {{
+    font-size: 1rem;
+    font-weight: {ty.weight_semibold};
+    color: {c.text_primary};
+    letter-spacing: -0.015em;
+  }}
+  .brand .brand-tag {{
+    font-size: 0.66rem;
+    color: {c.text_muted};
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 1px;
+  }}
+
+  /* ── Filtros: agrupación visual en sidebar ────────────────────────── */
+  .filter-group-header {{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: {c.text_muted};
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: {ty.weight_semibold};
+    margin: calc(14px * var(--density)) 0 calc(6px * var(--density)) 0;
+  }}
+  .filter-group-header svg {{ opacity: 0.75; }}
+
+  /* ── Chips de filtros activos (sin st.columns) ───────────────────── */
+  .chip-row {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 4px 0 2px 0;
+  }}
+  .filter-chip {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: {c.bg_elev_1};
+    border: 1px solid {c.border_subtle};
+    border-radius: {ra.pill};
+    padding: 3px 11px;
+    font-size: 0.76rem;
+    color: {c.text_card_title};
+    white-space: nowrap;
+    line-height: 1.4;
+    transition: border-color 0.15s, background 0.15s;
+  }}
+  .filter-chip:hover {{
+    border-color: {c.accent_primary};
+    background: rgba(0,163,224,0.08);
+  }}
+  .filter-chip svg {{ opacity: 0.7; flex-shrink: 0; }}
+
   /* ── KPI Cards ────────────────────────────────────────────────────── */
   .kpi-card {{
     background: {c.bg_elev_1};
@@ -95,8 +234,8 @@ def build_css(t: Tokens = TOKENS) -> str:
     border: 1px solid {c.border_subtle};
     border-radius: {ra.md};
     padding: calc(18px * var(--density)) calc(22px * var(--density));
-    box-shadow: {t.shadows.md};
-    transition: border-color 0.2s, transform 0.15s;
+    box-shadow: {sh.md};
+    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
     /* Layout interno consistente: label arriba, value medio, delta abajo. */
     display: flex;
     flex-direction: column;
@@ -106,7 +245,11 @@ def build_css(t: Tokens = TOKENS) -> str:
     position: relative;
     overflow: hidden;
   }}
-  .kpi-card:hover {{ border-color: {c.accent_primary}; transform: translateY(-1px); }}
+  .kpi-card:hover {{
+    border-color: {c.accent_primary};
+    transform: translateY(-1px);
+    box-shadow: 0 4px 18px rgba(0,163,224,0.12);
+  }}
   .kpi-card .label {{
     color: {c.text_muted}; font-size: {ty.size_xs}; font-weight: {ty.weight_medium};
     text-transform: uppercase; letter-spacing: {ty.letter_kpi_label};
@@ -119,7 +262,9 @@ def build_css(t: Tokens = TOKENS) -> str:
     min-height: 1.8em;
   }}
   .kpi-card .value {{
-    color: {c.text_value}; font-size: {ty.size_2xl}; font-weight: {ty.weight_bold};
+    color: {c.text_value};
+    font-size: calc({ty.size_2xl} * var(--density));
+    font-weight: {ty.weight_bold};
     line-height: 1.1; letter-spacing: -0.02em;
     white-space: nowrap;
     overflow: hidden;
@@ -134,15 +279,17 @@ def build_css(t: Tokens = TOKENS) -> str:
     text-overflow: ellipsis;
     min-height: 1.05em;
   }}
-  .kpi-card .delta.up {{ color: {c.accent_primary}; }}
+  .kpi-card .delta.up {{ color: {c.success}; }}
   .kpi-card .delta.down {{ color: {c.danger}; }}
   .kpi-card .icon {{
-    font-size: 1rem; opacity: 0.35;
+    color: {c.accent_primary}; opacity: 0.55;
     position: absolute; top: calc(14px * var(--density)); right: calc(16px * var(--density));
+    line-height: 0;
   }}
+  .kpi-card .icon svg {{ width: 18px; height: 18px; }}
   .kpi-card .sparkline-wrap {{ margin-top: calc(4px * var(--density)); min-height: 24px; }}
   .kpi-card .anomaly-badge {{
-    position: absolute; top: calc(14px * var(--density)); right: calc(40px * var(--density));
+    position: absolute; top: calc(14px * var(--density)); right: calc(44px * var(--density));
     font-size: 0.85rem; color: {c.danger};
   }}
 
@@ -154,15 +301,24 @@ def build_css(t: Tokens = TOKENS) -> str:
     border-radius: {ra.md};
     padding: calc(14px * var(--density)) calc(18px * var(--density));
     margin-bottom: calc(10px * var(--density));
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, transform 0.15s;
     /* Altura mínima para que un listado de top-cards tenga ritmo visual. */
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     min-height: calc(96px * var(--density));
   }}
-  .top-card:hover {{ border-color: {c.border_hover}; border-left-color: {c.accent_primary_hover}; }}
-  .top-card .amount {{ font-size: 1.25rem; font-weight: {ty.weight_bold}; color: {c.accent_primary}; letter-spacing: -0.01em; }}
+  .top-card:hover {{
+    border-color: {c.border_hover};
+    border-left-color: {c.accent_primary_hover};
+    transform: translateX(1px);
+  }}
+  .top-card .amount {{
+    font-size: calc(1.25rem * var(--density));
+    font-weight: {ty.weight_bold};
+    color: {c.accent_primary};
+    letter-spacing: -0.01em;
+  }}
   .top-card .title {{
     font-size: 0.88rem; color: {c.text_card_title}; margin: 4px 0; line-height: 1.35;
     display: -webkit-box;
@@ -170,6 +326,8 @@ def build_css(t: Tokens = TOKENS) -> str:
     -webkit-box-orient: vertical;
     overflow: hidden;
   }}
+  .top-card .title a {{ color: {c.text_card_title}; text-decoration: none; }}
+  .top-card .title a:hover {{ color: {c.accent_primary}; }}
   .top-card .meta {{
     font-size: 0.74rem; color: {c.text_muted};
     display: -webkit-box;
@@ -179,10 +337,55 @@ def build_css(t: Tokens = TOKENS) -> str:
   }}
 
   /* ── Breadcrumb ───────────────────────────────────────────────────── */
-  .bc {{ font-size: {ty.size_sm}; margin-bottom: 2px; }}
+  .bc {{
+    font-size: {ty.size_sm};
+    margin-bottom: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }}
   .bc-section {{ color: {c.text_muted}; font-weight: {ty.weight_medium}; }}
-  .bc-sep {{ color: {c.text_disabled}; margin: 0 4px; }}
+  .bc-sep {{ color: {c.text_disabled}; display: inline-flex; line-height: 0; }}
   .bc-page {{ color: {c.accent_primary}; font-weight: {ty.weight_medium}; }}
+
+  /* ── Empty / error states ─────────────────────────────────────────── */
+  .empty-state {{
+    text-align: center;
+    padding: 2.5rem 1rem 1.5rem;
+  }}
+  .empty-state .es-icon {{
+    color: {c.text_muted};
+    margin-bottom: 0.75rem;
+    line-height: 0;
+    display: flex;
+    justify-content: center;
+  }}
+  .empty-state .es-icon svg {{ width: 44px; height: 44px; }}
+  .empty-state .es-title {{
+    font-size: 1rem;
+    font-weight: {ty.weight_semibold};
+    color: {c.text_card_title};
+    margin-bottom: 0.35rem;
+  }}
+  .empty-state .es-msg {{
+    font-size: 0.85rem;
+    color: {c.text_muted};
+    max-width: 380px;
+    margin: 0 auto;
+  }}
+  .error-banner {{
+    border: 1px solid rgba(226,24,54,0.35);
+    border-radius: {ra.md};
+    padding: 1rem 1.25rem;
+    background: rgba(226,24,54,0.06);
+    margin-bottom: 0.75rem;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }}
+  .error-banner svg {{ color: {c.danger}; flex-shrink: 0; margin-top: 2px; }}
+  .error-banner strong {{ color: {c.text_value}; display: block; margin-bottom: 2px; }}
+  .error-banner span {{ color: {c.text_muted}; font-size: 0.875rem; }}
 
   /* ── Metrics & misc ───────────────────────────────────────────────── */
   div[data-testid="stMetricValue"] {{ font-size: 1.5rem; }}
@@ -190,6 +393,25 @@ def build_css(t: Tokens = TOKENS) -> str:
   ::-webkit-scrollbar {{ width: 5px; }}
   ::-webkit-scrollbar-track {{ background: transparent; }}
   ::-webkit-scrollbar-thumb {{ background: {c.scrollbar_thumb}; border-radius: 3px; }}
+
+  /* ── Density: tablas (Aggrid / dataframe) ─────────────────────────── */
+  .ag-theme-streamlit .ag-row, .ag-theme-balham-dark .ag-row {{
+    height: calc(34px * var(--density)) !important;
+    min-height: calc(34px * var(--density)) !important;
+  }}
+
+  /* ── Focus visible (accesibilidad) ────────────────────────────────── */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible,
+  .filter-chip:focus-visible,
+  .kpi-card:focus-visible,
+  .top-card:focus-visible {{
+    outline: none !important;
+    box-shadow: {sh.focus} !important;
+  }}
 
   /* ── Loading skeleton shimmer ─────────────────────────────────────── */
   @keyframes shimmer {{
@@ -245,6 +467,7 @@ def build_css(t: Tokens = TOKENS) -> str:
     }}
     /* Reducir altura mínima de KPI en mobile para evitar huecos. */
     .kpi-card {{ min-height: auto; }}
+    .app-header {{ flex-direction: column; align-items: flex-start; gap: 8px; }}
   }}
 
   /* ── Skip-link (accesibilidad) ────────────────────────────────────── */

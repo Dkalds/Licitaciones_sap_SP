@@ -2,27 +2,92 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
+import pandas as pd
 import streamlit as st
 
+from dashboard.components.icons import LOGO_SVG, icon
 from dashboard.data_loader import load_extracciones
 
 
-def render_header() -> None:
-    """Header de la app: título + botón de refresco de caché."""
-    col_l, col_r = st.columns([9, 1])
+def _format_last_updated(ts) -> str:
+    """Devuelve un texto humano corto para la pill de 'Última actualización'."""
+    if ts is None:
+        return "sin datos"
+    if isinstance(ts, str):
+        ts = pd.to_datetime(ts, utc=True, errors="coerce")
+    if pd.isna(ts):
+        return "sin datos"
+    if hasattr(ts, "tzinfo") and ts.tzinfo is None:
+        ts = ts.tz_localize("UTC")
+
+    now = datetime.now(timezone.utc)
+    delta = now - (ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts)
+    secs = int(delta.total_seconds())
+    if secs < 60:
+        return "hace segundos"
+    if secs < 3600:
+        return f"hace {secs // 60} min"
+    if secs < 86400:
+        return f"hace {secs // 3600} h"
+    days = secs // 86400
+    return f"hace {days} d" if days < 30 else ts.strftime("%Y-%m-%d")
+
+
+def render_header(
+    title: str = "Licitaciones SAP",
+    subtitle: str | None = "Inteligencia comercial · Sector público",
+    last_updated=None,
+) -> None:
+    """Header pro de la app: título + pill 'última actualización' + refresh.
+
+    Layout en 3 zonas: brand+título, meta (pill), acciones (botón refresh).
+    """
+    last_str = _format_last_updated(last_updated)
+    sub_html = f'<div class="ah-subtitle">{subtitle}</div>' if subtitle else ""
+
+    col_l, col_m, col_r = st.columns([6, 3, 1])
     with col_l:
-        st.markdown("## Licitaciones SAP · Sector Público")
+        st.markdown(
+            f'<div><h1 class="ah-title">{title}</h1>{sub_html}</div>',
+            unsafe_allow_html=True,
+        )
+    with col_m:
+        st.markdown(
+            '<div style="display:flex;justify-content:flex-end;align-items:center;'
+            'height:100%">'
+            f'<span class="ah-meta">{icon("clock", 13)} '
+            f'Actualizado {last_str}</span>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
     with col_r:
-        if st.button("↻", use_container_width=True, help="Refrescar caché"):
+        if st.button(
+            "↻",
+            use_container_width=True,
+            help="Refrescar caché de datos",
+            key="header_refresh",
+        ):
             st.cache_data.clear()
             st.rerun()
 
+    st.markdown(
+        '<div style="height:1px;background:var(--color-border-subtle);'
+        'margin:8px 0 18px 0"></div>',
+        unsafe_allow_html=True,
+    )
+
 
 def render_sidebar_brand() -> None:
-    """Logo/nombre en la parte superior del sidebar."""
+    """Logo + nombre + tagline en la parte superior del sidebar."""
     st.markdown(
-        '<p style="font-size:1.05rem;font-weight:600;letter-spacing:-0.02em;'
-        'color:#E0E0E0;margin:0 0 1rem 2px">⬡ Licitaciones SAP</p>',
+        f'<div class="brand">'
+        f'<div class="brand-logo">{LOGO_SVG}</div>'
+        f'<div class="brand-text">'
+        f'<span class="brand-name">Licitaciones SAP</span>'
+        f'<span class="brand-tag">Sector público · ES</span>'
+        f"</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -32,10 +97,14 @@ def render_footer() -> None:
     st.divider()
     ext = load_extracciones()
     if not ext.empty:
-        st.caption(
-            f"📦 Última extracción: "
-            f"{ext.iloc[0]['fecha']} — fuente "
-            f"{ext.iloc[0]['fuente']} ({ext.iloc[0]['nuevas']} nuevas)"
+        st.markdown(
+            f'<div style="font-size:0.78rem;color:var(--color-text-muted);'
+            f'display:flex;align-items:center;gap:6px">'
+            f'{icon("database", 12)}'
+            f'<span>Última extracción: {ext.iloc[0]["fecha"]} — fuente '
+            f'{ext.iloc[0]["fuente"]} ({ext.iloc[0]["nuevas"]} nuevas)</span>'
+            f'</div>',
+            unsafe_allow_html=True,
         )
     st.caption(
         "Fuente oficial: contrataciondelestado.es · "

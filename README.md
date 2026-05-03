@@ -22,8 +22,8 @@ con proyectos **SAP** y muestra estadísticas en un dashboard interactivo.
                           ┌──────────────┼─────────────┐
                           ▼                            ▼
                 ┌──────────────────┐         ┌──────────────────┐
-                │ Task Scheduler   │         │ Streamlit UI     │
-                │ (diario 03:00)   │         │ KPIs + gráficos  │
+                │ GitHub Actions   │         │ Streamlit UI     │
+                │ (cron diario)    │         │ KPIs + gráficos  │
                 └──────────────────┘         └──────────────────┘
 ```
 
@@ -54,8 +54,13 @@ licitaciones-sap/
 │   ├── theme/               # Tokens de diseño, CSS, plantilla Plotly
 │   └── utils/               # Exportación, formato, seguridad
 ├── scheduler/
-│   ├── run_update.py        # Entry point cron/Task Scheduler
-│   └── register_task_windows.ps1
+│   ├── run_update.py        # Entry point para cron / GitHub Actions
+│   ├── healthcheck.py       # Verificación de salud del sistema
+│   └── watchlist_alerts.py  # Alertas por watchlist de usuario
+├── .github/workflows/
+│   ├── scrape.yml           # Bulk mensual (diario 06:00 UTC)
+│   ├── scrape-daily.yml     # Feed ATOM en vivo (cada 4h)
+│   └── healthcheck.yml      # Healthcheck (cada 6h)
 └── data/                    # BD SQLite + ZIPs descargados (gitignored)
 ```
 
@@ -110,15 +115,25 @@ streamlit run dashboard/app.py
 ```
 Abre http://localhost:8501
 
-### 4. Programar actualización automática (Windows)
-```powershell
-# Como administrador:
-.\scheduler\register_task_windows.ps1
-```
-Crea una tarea diaria a las 03:00. Ver en *Programador de tareas* o:
-```powershell
-Get-ScheduledTask -TaskName LicitacionesSAP-Update
-```
+### 4. Programar actualización automática (GitHub Actions)
+
+Los workflows ya están incluidos en `.github/workflows/`. Solo necesitas
+configurar los secrets en tu repositorio de GitHub:
+
+1. Ve a **Settings → Secrets and variables → Actions**
+2. Añade estos secrets:
+   - `TURSO_DATABASE_URL` — URL de tu base de datos Turso
+   - `TURSO_AUTH_TOKEN` — Token de autenticación de Turso
+   - `ALERT_EMAIL_TO` (opcional) — Email para alertas
+   - `ALERT_SMTP_USER` / `ALERT_SMTP_PASSWORD` (opcional) — Credenciales SMTP
+
+| Workflow | Frecuencia | Descripción |
+|----------|------------|-------------|
+| `scrape.yml` | Diario 06:00 UTC | Bulk mensual (últimos 3 meses) |
+| `scrape-daily.yml` | Cada 4 horas | Feed ATOM en vivo |
+| `healthcheck.yml` | Cada 6 horas | Verificación de frescura de datos |
+
+También puedes ejecutarlos manualmente desde la pestaña **Actions** del repo.
 
 ## Seguridad
 
@@ -185,7 +200,7 @@ Setup recomendado, sin servidores propios:
 - **Dashboard** en [Streamlit Community Cloud](https://share.streamlit.io)
 - **Base de datos** en [Turso](https://turso.tech) (SQLite cloud, tier
   gratuito suficiente para este volumen)
-- **Scraping diario** en GitHub Actions o Task Scheduler local
+- **Scraping diario** en GitHub Actions (workflows incluidos en el repo)
 
 ### 1. Conectar el repo a Streamlit Cloud
 1. https://share.streamlit.io → "New app"
@@ -195,14 +210,11 @@ Setup recomendado, sin servidores propios:
 4. Deploy. Se instalará desde `requirements.txt` automáticamente.
 
 ### 2. Cron diario en GitHub Actions
-Configura un workflow `.github/workflows/scrape.yml` que:
-- Se ejecute a las 06:00 UTC
-- Lance `python -m scheduler.run_update --months 3`
-- Tenga acceso a `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` como secrets
-  del repositorio
+Los workflows ya están configurados en `.github/workflows/`. Solo
+necesitas añadir los secrets en el repositorio:
 
-Para añadir los secrets: Repo → **Settings → Secrets and variables →
-Actions** → "New repository secret".
+Repo → **Settings → Secrets and variables → Actions** →
+"New repository secret": `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`.
 
 ## Próximos pasos sugeridos
 
@@ -229,8 +241,8 @@ Actions** → "New repository secret".
                           ┌────────────────┼─────────────┐
                           ▼                              ▼
                 ┌──────────────────┐           ┌──────────────────┐
-                │ Task Scheduler   │           │ Streamlit UI     │
-                │ (diario 03:00)   │           │ KPIs + gráficos  │
+                │ GitHub Actions   │           │ Streamlit UI     │
+                │ (cron diario)    │           │ KPIs + gráficos  │
                 └──────────────────┘           └──────────────────┘
 ```
 
@@ -251,8 +263,8 @@ licitaciones-sap/
 │   ├── stats.py             # Cálculos (KPIs, agrupaciones)
 │   └── app.py               # Streamlit dashboard
 ├── scheduler/
-│   ├── run_update.py        # Entry point para cron/Task Scheduler
-│   └── register_task_windows.ps1
+│   └── run_update.py        # Entry point para cron / GitHub Actions
+├── .github/workflows/       # Scraping + healthcheck automatizado
 └── data/                    # BD SQLite + ZIPs descargados
 ```
 
@@ -285,16 +297,10 @@ streamlit run dashboard/app.py
 ```
 Abre http://localhost:8501
 
-### 4. Programar actualización automática (Windows)
-```powershell
-# Como administrador:
-.\scheduler\register_task_windows.ps1
-```
-Esto crea una tarea diaria a las 03:00. Ver en *Programador de tareas*
-o:
-```powershell
-Get-ScheduledTask -TaskName LicitacionesSAP-Update
-```
+### 4. Programar actualización automática (GitHub Actions)
+Los workflows están en `.github/workflows/`. Consulta la sección
+[Programar actualización automática](#4-programar-actualización-automática-github-actions)
+arriba para configurar los secrets.
 
 ## Personalizar las keywords SAP
 

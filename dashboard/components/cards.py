@@ -39,7 +39,7 @@ def top_card(
         f'<div class="top-card">'
         f'<div class="amount">{_html.escape(amount)}</div>'
         f'<div class="title">'
-        f'<a href="{href}" target="_blank" style="color:#E0E0E0;text-decoration:none">'
+        f'<a href="{href}" target="_blank">'
         f"{safe_title}</a></div>"
         f'<div class="meta">{meta_html}</div>'
         f"</div>",

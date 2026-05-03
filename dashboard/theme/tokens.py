@@ -40,34 +40,40 @@ class Colors:
     text_plot_axis: str = "#A8A8A8"
     text_plot_body: str = "#A0A0A0"
 
-    # Accents
-    accent_primary: str = "#86BC25"  # SAP green
-    accent_primary_hover: str = "#6B9B1E"
-    accent_secondary: str = "#00A3E0"  # SAP blue
-    accent_secondary_hover: str = "#0083B3"
+    # Accents — identidad SAP-aligned con azul como primario (Refresh visual).
+    # `accent_primary` impulsa los acentos de marca (KPIs, top-cards, breadcrumb,
+    # primaryColor de Streamlit). El verde se reserva al rol semántico
+    # "positivo / éxito" (`success`).
+    accent_primary: str = "#00A3E0"  # SAP blue
+    accent_primary_hover: str = "#0083B3"
+    accent_secondary: str = "#5BC0EB"  # azul claro complementario
+    accent_secondary_hover: str = "#3DA3CC"
+    success: str = "#86BC25"  # SAP green — solo para "positivo"
+    success_hover: str = "#6B9B1E"
+    warning: str = "#FFB627"
     danger: str = "#E21836"
 
     # Scrollbar
     scrollbar_thumb: str = "rgba(255,255,255,0.08)"
 
-    # Streamlit native theme (.streamlit/config.toml)
-    # Afectan a widgets nativos (botones primary, focus de inputs, fondos de
-    # st.metric, etc.). Son semánticamente distintos de los accents del CSS
-    # custom porque Streamlit los aplica en otros contextos.
-    st_primary: str = "#00B4D8"
+    # Streamlit native theme (.streamlit/config.toml).
+    # Alineado con `accent_primary` para coherencia visual entre widgets nativos
+    # y CSS custom.
+    st_primary: str = "#00A3E0"
     st_bg_widget: str = "#1A1F2C"  # secondaryBackgroundColor
     st_text: str = "#E8ECF1"  # textColor
 
-    # Plotly categorical palette (orden = colorway)
+    # Plotly categorical palette (orden = colorway). Azul primario primero,
+    # verde "success" segundo, paleta extendida profesional a continuación.
     plotly_colorway: tuple[str, ...] = (
-        "#86BC25",
-        "#00A3E0",
-        "#A0A0A0",
-        "#D0D0D0",
-        "#6B9B1E",
-        "#0083B3",
-        "#E0E0E0",
-        "#66BB6A",
+        "#00A3E0",  # primary blue
+        "#86BC25",  # success green
+        "#5BC0EB",  # light blue
+        "#FFB627",  # warning amber
+        "#E21836",  # danger red
+        "#7A5FFF",  # violet
+        "#00C2A8",  # teal
+        "#A8A8A8",  # neutral grey
     )
 
 
@@ -93,7 +99,7 @@ class Radii:
 class Shadows:
     sm: str = "0 1px 3px rgba(0,0,0,0.12)"
     md: str = "0 2px 12px rgba(0,0,0,0.15)"
-    focus: str = "0 0 0 3px rgba(134,188,37,0.35)"
+    focus: str = "0 0 0 3px rgba(0,163,224,0.35)"
 
 
 @dataclass(frozen=True)

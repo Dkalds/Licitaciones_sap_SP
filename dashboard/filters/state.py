@@ -33,7 +33,7 @@ class FiltersState:
         """Lista de etiquetas de filtros activos (para chips de la UI)."""
         labels = []
         if self.q:
-            labels.append(f'🔍 "{self.q}"')
+            labels.append(f'Búsqueda: "{self.q}"')
         for e in self.estados:
             labels.append(f"Estado: {e}")
         for c in self.ccaas:

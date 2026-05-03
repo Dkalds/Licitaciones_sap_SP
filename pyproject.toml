@@ -89,7 +89,6 @@ omit = [
     "dashboard/router.py",
     "dashboard/data_loader.py",
     "scheduler/run_update.py",
-    "scheduler/register_task_windows.ps1",
     "config.py",
 ]
 

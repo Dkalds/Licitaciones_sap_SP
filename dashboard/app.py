@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import pandas as pd
 import streamlit as st
 
 from dashboard.auth import check_password
-from dashboard.components.kpi import kpi_card
 from dashboard.components.layout import (render_footer, render_header,
                                           render_sidebar_brand)
 from dashboard.components.navigation import (active_filters_chips, breadcrumb,
@@ -14,11 +12,12 @@ from dashboard.components.navigation import (active_filters_chips, breadcrumb,
 from dashboard.components.states import empty_state
 from dashboard.data_loader import load_dataframe
 from dashboard.filters import FiltersState, apply_filters, render_sidebar_filters
+from dashboard.kpi_bar import render_kpi_bar
 from dashboard.pages import PAGE_REGISTRY
 from dashboard.pages._base import PageContext
+from dashboard.router import SECTIONS
 from dashboard.theme import (COMPACT_DENSITY_CSS, TOKENS, build_css,
                               get_color_sequence, register_plotly_template)
-from dashboard.utils.format import fmt_eur
 
 # ── Config & estilo ──────────────────────────────────────────────────────
 st.set_page_config(
@@ -41,23 +40,16 @@ check_password()
 PLOTLY_TEMPLATE = register_plotly_template(TOKENS)
 COLOR_SEQUENCE = get_color_sequence(TOKENS)
 
-# ── Section navigation ─────────────────────────────────────────────────
-SECTIONS = {
-    "Vista General": ["Resumen", "Tendencias", "Detalle"],
-    "Mercado": ["Órganos", "Geografía", "Proyectos & Módulos"],
-    "Competencia": ["Competidores", "Pipeline & Alertas"],
-}
-SECTION_ICONS = {"Vista General": "◈", "Mercado": "◉",
-                 "Competencia": "◆"}
+# ── Carga de datos (necesaria antes del header para 'última actualización') ──
+df_full = load_dataframe()
 
 # ── Header ──────────────────────────────────────────────────────────────
-render_header()
-
-df_full = load_dataframe()
+last_updated = df_full["fecha_extraccion"].max() if not df_full.empty else None
+render_header(last_updated=last_updated)
 
 if df_full.empty:
     empty_state(
-        "📭",
+        "inbox",
         "Sin datos en la base de datos",
         "Ejecuta el pipeline para importar licitaciones.",
         cta_label="Ver comando de carga",
@@ -92,14 +84,15 @@ if "_qp_loaded" not in st.session_state:
 with st.sidebar:
     render_sidebar_brand()
     section = st.radio(
-        "nav", list(SECTIONS.keys()),
-        format_func=lambda x: f"{SECTION_ICONS[x]}  {x}",
-        label_visibility="collapsed", key="nav_section",
+        "nav",
+        list(SECTIONS.keys()),
+        label_visibility="collapsed",
+        key="nav_section",
     )
     st.divider()
     filters: FiltersState = render_sidebar_filters(df_full)
     st.divider()
-    compact = st.toggle("📰 Modo compacto", key="density_compact", value=False)
+    compact = st.toggle("Modo compacto", key="density_compact", value=False)
 
 # ── Inyectar override de densidad compacta ────────────────────────────────
 if compact:
@@ -115,39 +108,7 @@ if cur_qp != new_qp:
             del st.query_params[key]
     st.query_params.update(new_qp)
 # ── KPI cards ───────────────────────────────────────────────────────────
-total = len(df)
-importe_total = df["importe"].sum(skipna=True)
-importe_medio = df["importe"].mean(skipna=True) or 0
-n_organos = df["organo_contratacion"].nunique()
-n_ccaa = df["ccaa"].nunique()
-
-hoy = pd.Timestamp.now("UTC")
-ult30 = df[df["fecha_publicacion"] >= (hoy - pd.Timedelta(days=30))]
-prev30 = df[(df["fecha_publicacion"] < (hoy - pd.Timedelta(days=30))) &
-            (df["fecha_publicacion"] >= (hoy - pd.Timedelta(days=60)))]
-delta_n = len(ult30) - len(prev30)
-delta_pct = (delta_n / len(prev30) * 100) if len(prev30) else 0
-
-c1, c2, c3, c4, c5 = st.columns(5)
-with c1:
-    st.markdown(kpi_card("Licitaciones SAP", f"{total:,}",
-                          icon="📋"), unsafe_allow_html=True)
-with c2:
-    st.markdown(kpi_card("Importe total", fmt_eur(importe_total),
-                          icon="💰"), unsafe_allow_html=True)
-with c3:
-    st.markdown(kpi_card("Importe medio", fmt_eur(importe_medio),
-                          icon="📈"), unsafe_allow_html=True)
-with c4:
-    st.markdown(kpi_card("Órganos distintos", f"{n_organos}",
-                          icon="🏛️"), unsafe_allow_html=True)
-with c5:
-    delta_txt = (f"{delta_pct:+.0f}% últ. 30d" if prev30.shape[0]
-                  else "sin comparativa")
-    st.markdown(kpi_card("CCAA cubiertas", f"{n_ccaa}/17",
-                          delta=delta_txt,
-                          delta_up=delta_n >= 0, icon="🗺️"),
-                 unsafe_allow_html=True)
+render_kpi_bar(df)
 
 st.markdown("")
 

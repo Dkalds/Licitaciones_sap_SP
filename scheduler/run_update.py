@@ -1,4 +1,4 @@
-"""Punto de entrada para ejecuciones programadas (cron / Task Scheduler).
+"""Punto de entrada para ejecuciones programadas (GitHub Actions / cron).
 
 Uso:
   python -m scheduler.run_update                # actualiza últimos 3 meses

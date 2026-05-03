@@ -14,29 +14,44 @@ from contextlib import contextmanager
 
 import streamlit as st
 
+from dashboard.components.icons import icon
+
 
 def empty_state(
-    icon: str,
+    icon_name: str | None,
     title: str,
     message: str,
     cta_label: str | None = None,
     cta_cb: Callable[[], None] | None = None,
 ) -> None:
-    """Estado vacío: icono grande + título + mensaje + CTA opcional.
+    """Estado vacío: icono SVG + título + mensaje + CTA opcional.
+
+    Args:
+        icon_name: clave de icono Lucide (ej. "inbox", "alert-triangle").
+                   Por compatibilidad acepta también un emoji legacy: si
+                   `icon_name` no está en el catálogo, se renderiza tal cual.
 
     Usa `role=status` y `aria-live=polite` para que lectores de pantalla lo
     anuncien cuando aparece dinámicamente.
     """
     safe_title = _html.escape(title)
     safe_msg = _html.escape(message)
+
+    if icon_name and len(icon_name) <= 2:
+        # Probable emoji legacy → mapear o renderizar como texto.
+        icon_html = (
+            f'<div style="font-size:2.4rem;line-height:1" aria-hidden="true">{icon_name}</div>'
+        )
+    elif icon_name:
+        icon_html = icon(icon_name, size=44)
+    else:
+        icon_html = ""
+
     st.markdown(
-        f'<div role="status" aria-live="polite" '
-        f'style="text-align:center;padding:2.5rem 1rem 1.5rem;">'
-        f'<div style="font-size:2.8rem;margin-bottom:0.75rem" aria-hidden="true">{icon}</div>'
-        f'<div style="font-size:1rem;font-weight:600;color:#E0E0E0;margin-bottom:0.35rem">'
-        f"{safe_title}</div>"
-        f'<div style="font-size:0.85rem;color:#A0A0A0;max-width:380px;margin:0 auto">'
-        f"{safe_msg}</div>"
+        f'<div role="status" aria-live="polite" class="empty-state">'
+        f'<div class="es-icon">{icon_html}</div>'
+        f'<div class="es-title">{safe_title}</div>'
+        f'<div class="es-msg">{safe_msg}</div>'
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -59,12 +74,10 @@ def error_state(
     En modo debug (URL `?debug=1`) muestra el traceback completo en un expander.
     """
     st.markdown(
-        f'<div role="alert" aria-live="assertive" '
-        f'style="border:1px solid rgba(226,24,54,0.35);border-radius:10px;'
-        f'padding:1rem 1.25rem;background:rgba(226,24,54,0.06);margin-bottom:0.75rem">'
-        f'<span style="font-size:1.1rem" aria-hidden="true">⚠️</span> '
-        f'<strong style="color:#F0F0F0">{_html.escape(title)}</strong><br>'
-        f'<span style="color:#A0A0A0;font-size:0.875rem">{_html.escape(message)}</span>'
+        f'<div role="alert" aria-live="assertive" class="error-banner">'
+        f'{icon("alert-triangle", 18)}'
+        f"<div><strong>{_html.escape(title)}</strong>"
+        f"<span>{_html.escape(message)}</span></div>"
         f"</div>",
         unsafe_allow_html=True,
     )
