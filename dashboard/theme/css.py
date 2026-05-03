@@ -3,10 +3,12 @@
 `build_css(tokens)` devuelve la cadena `<style>…</style>` completa incluyendo:
 - Estilos base (Fase 1)
 - Shimmer animation para loading skeletons (Fase 3)
-- Media queries responsive 1024 / 640 px (Fase 3)
+- Media queries responsive 1024 / 768 / 640 px (Fase 3 + mejoras-visuales)
 - prefers-reduced-motion (Fase 3)
 - Focus-visible ring y skip-to-content (Fase 4)
 - Refresh visual (azul SAP, hide chrome nativo, header/chips/density real)
+- Status badges, tooltip CSS-only, search highlight (mejoras-visuales)
+- Sticky thead, micro-interacciones, scroll indicator móvil (mejoras-visuales)
 """
 from __future__ import annotations
 
@@ -506,6 +508,136 @@ def build_css(t: Tokens = TOKENS) -> str:
       animation-duration: 0.001s !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.001s !important;
+    }}
+  }}
+
+  /* ── Status badges ────────────────────────────────────────────────── */
+  .status-badge {{
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: {ra.pill};
+    font-size: 0.75rem;
+    font-weight: {ty.weight_medium};
+    border: 1px solid transparent;
+    line-height: 1.5;
+    white-space: nowrap;
+    color: var(--badge-color, {c.text_muted});
+    background: color-mix(in srgb, var(--badge-color, {c.text_muted}) 12%, transparent);
+    border-color: color-mix(in srgb, var(--badge-color, {c.text_muted}) 30%, transparent);
+    transition: opacity 0.15s ease;
+  }}
+  .status-badge svg {{ flex-shrink: 0; }}
+
+  /* ── Tooltip CSS-only ─────────────────────────────────────────────── */
+  .has-tooltip {{ position: relative; display: inline-block; }}
+  .has-tooltip::after {{
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: {c.bg_hoverlabel};
+    color: {c.text_primary};
+    border: 1px solid {c.border_hoverlabel};
+    border-radius: {ra.sm};
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 200;
+    box-shadow: {sh.md};
+  }}
+  .has-tooltip:hover::after {{ opacity: 1; }}
+
+  /* ── Search highlight ─────────────────────────────────────────────── */
+  mark.search-hl {{
+    background: rgba(0,163,224,0.25);
+    color: inherit;
+    padding: 1px 2px;
+    border-radius: 3px;
+    font-style: normal;
+    font-weight: {ty.weight_medium};
+  }}
+
+  /* ── Skeleton shapes para KPI y top-card ─────────────────────────── */
+  .skeleton-card {{
+    /* Reutiliza la animación shimmer del .skeleton, sin height fija */
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.04) 25%,
+      rgba(255,255,255,0.09) 50%,
+      rgba(255,255,255,0.04) 75%
+    ) !important;
+    background-size: 600px 100% !important;
+    animation: shimmer 1.4s ease-in-out infinite !important;
+    border-color: transparent !important;
+    pointer-events: none;
+  }}
+  .skeleton-kpi-label, .skeleton-kpi-value, .skeleton-kpi-spark,
+  .skeleton-tc-amount, .skeleton-tc-title, .skeleton-tc-meta {{
+    border-radius: {ra.sm};
+    background: rgba(255,255,255,0.06);
+    margin-bottom: calc(8px * var(--density));
+  }}
+  .skeleton-kpi-label  {{ height: 10px; width: 60%; }}
+  .skeleton-kpi-value  {{ height: 28px; width: 75%; }}
+  .skeleton-kpi-spark  {{ height: 24px; width: 100%; }}
+  .skeleton-tc-amount  {{ height: 22px; width: 40%; }}
+  .skeleton-tc-title   {{ height: 14px; width: 90%; }}
+  .skeleton-tc-meta    {{ height: 11px; width: 70%; }}
+
+  /* ── Sticky headers en tablas nativas ────────────────────────────── */
+  .stDataFrame thead th {{
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: {c.bg_base};
+  }}
+
+  /* ── Micro-interacciones (respeta prefers-reduced-motion) ─────────── */
+  @media (prefers-reduced-motion: no-preference) {{
+    .filter-chip {{ transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease; }}
+    .filter-chip:hover {{ transform: translateY(-1px); }}
+    .status-badge {{ transition: opacity 0.15s ease, transform 0.1s ease; }}
+    .error-banner {{ animation: fadeInDown 0.2s ease; }}
+    @keyframes fadeInDown {{
+      from {{ opacity: 0; transform: translateY(-6px); }}
+      to   {{ opacity: 1; transform: translateY(0); }}
+    }}
+  }}
+
+  /* ── Responsive — iPad portrait (≤ {bp.tablet_mid}px) ───────────── */
+  @media (max-width: {bp.tablet_mid}px) {{
+    /* Stack KPI completo en iPad portrait */
+    [data-testid="stHorizontalBlock"] > [data-testid="column"] {{
+      flex: 1 1 100% !important;
+      min-width: 100% !important;
+    }}
+    /* Reducir altura mínima de charts en pantalla estrecha */
+    [data-testid="stPlotlyChart"] {{ min-height: 280px; }}
+  }}
+
+  /* ── Mobile scroll indicator en tablas ───────────────────────────── */
+  @media (max-width: {bp.mobile_max}px) {{
+    .stDataFrame {{
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }}
+    /* Gradient derecho como indicador visual de scroll */
+    [data-testid="stDataFrame"] {{
+      position: relative;
+    }}
+    [data-testid="stDataFrame"]::after {{
+      content: "";
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 32px;
+      background: linear-gradient(to right, transparent, {c.bg_base});
+      pointer-events: none;
     }}
   }}
 </style>
