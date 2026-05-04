@@ -73,8 +73,9 @@ def render_header(
             st.rerun()
 
     st.markdown(
-        '<div style="height:1px;background:var(--color-border-subtle);'
-        'margin:8px 0 18px 0"></div>',
+        '<div style="height:1px;'
+        'background:linear-gradient(90deg, transparent, var(--color-accent-primary-hover), var(--color-border-subtle), transparent);'
+        'margin:8px 0 18px 0;opacity:0.5"></div>',
         unsafe_allow_html=True,
     )
 

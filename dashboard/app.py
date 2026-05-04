@@ -38,6 +38,19 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Anti-flash: ocultar chrome nativo antes de que se renderice nada
+st.markdown(
+    '<style>'
+    '#MainMenu,footer,[data-testid="stSidebarNav"],[data-testid="stSidebarNavSeparator"],'
+    '[data-testid="stAppDeployButton"],[data-testid="stMainMenu"],'
+    '[data-testid="stDecoration"],[data-testid="stStatusWidget"]'
+    '{display:none!important;visibility:hidden!important}'
+    '[data-testid="stToolbar"]{visibility:hidden!important}'
+    '[data-testid="stExpandSidebarButton"]{visibility:visible!important;display:block!important}'
+    '</style>',
+    unsafe_allow_html=True,
+)
+
 st.markdown(build_css(TOKENS), unsafe_allow_html=True)
 st.markdown(
     '<a class="skip-link" href="#main">Saltar al contenido</a>',
@@ -55,7 +68,10 @@ COLOR_SEQUENCE = get_color_sequence(TOKENS)
 df_full = load_dataframe()
 
 # ── Header ──────────────────────────────────────────────────────────────
-last_updated = df_full["fecha_extraccion"].max() if not df_full.empty else None
+from dashboard.data_loader import load_extracciones
+
+_ext = load_extracciones()
+last_updated = _ext["fecha"].max() if not _ext.empty else None
 render_header(last_updated=last_updated)
 
 if df_full.empty:

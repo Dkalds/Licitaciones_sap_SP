@@ -83,7 +83,33 @@ def build_css(t: Tokens = TOKENS) -> str:
   }}
   /* Oculta toolbar (deploy, menú) pero mantiene el botón de expandir sidebar */
   [data-testid="stToolbar"] {{ visibility: hidden !important; }}
-  [data-testid="stExpandSidebarButton"] {{ visibility: visible !important; }}
+  [data-testid="stExpandSidebarButton"] {{
+    visibility: visible !important;
+    display: block !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 0 !important;
+    transform: translateY(-50%) !important;
+    z-index: 999 !important;
+    background: {c.bg_elev_1} !important;
+    backdrop-filter: blur(12px) !important; -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid {c.border_subtle} !important;
+    border-left: none !important;
+    border-radius: 0 {ra.sm} {ra.sm} 0 !important;
+    padding: 12px 8px !important;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.2) !important;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+  }}
+  [data-testid="stExpandSidebarButton"]:hover {{
+    background: rgba(0,163,224,0.08) !important;
+    border-color: {c.accent_primary} !important;
+    box-shadow: 2px 0 16px rgba(0,163,224,0.15) !important;
+  }}
+  [data-testid="stExpandSidebarButton"] svg {{
+    color: {c.accent_primary} !important;
+    width: 18px !important;
+    height: 18px !important;
+  }}
   [data-testid="stAppDeployButton"] {{ display: none !important; }}
   [data-testid="stMainMenu"] {{ display: none !important; }}
   footer {{ visibility: hidden !important; height: 0 !important; }}
@@ -101,8 +127,31 @@ def build_css(t: Tokens = TOKENS) -> str:
     max-width: {la.sidebar_width} !important;
     background: linear-gradient(180deg, {c.bg_sidebar_top} 0%, {c.bg_sidebar_bottom} 100%) !important;
     border-right: 1px solid {c.border_subtle} !important;
+    box-shadow: 4px 0 24px -4px rgba(0,0,0,0.3);
   }}
   section[data-testid="stSidebar"] > div {{ padding-top: {t.spacing.lg}; }}
+
+  /* ── Sidebar collapsed: contenido ocupa ancho completo ────────────── */
+  section[data-testid="stSidebar"][aria-expanded="false"] {{
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    overflow: hidden !important;
+  }}
+  section[data-testid="stSidebar"][aria-expanded="false"] ~ section[data-testid="stMain"] .block-container,
+  [data-testid="stAppViewBlockContainer"] {{
+    max-width: 100% !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+    transition: max-width 0.3s ease, padding 0.3s ease;
+  }}
+  /* Transición suave al abrir/cerrar sidebar */
+  section[data-testid="stSidebar"] {{
+    transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
+  }}
+  .block-container {{
+    transition: max-width 0.3s ease, padding 0.3s ease !important;
+  }}
 
   /* ── Layout: column gap & vertical alignment ─────────────────────── */
   /* Asegura que todas las columnas de un mismo bloque horizontal tengan la
@@ -143,11 +192,15 @@ def build_css(t: Tokens = TOKENS) -> str:
   }}
   .app-header .ah-title {{
     font-size: {ty.size_xl};
-    font-weight: {ty.weight_semibold};
+    font-weight: {ty.weight_bold};
     letter-spacing: {ty.letter_tight};
     color: {c.text_primary};
     margin: 0;
     line-height: 1.2;
+    background: linear-gradient(135deg, {c.text_primary} 0%, {c.accent_secondary} 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }}
   .app-header .ah-subtitle {{
     font-size: {ty.size_xs};
@@ -163,10 +216,12 @@ def build_css(t: Tokens = TOKENS) -> str:
     font-size: {ty.size_xs};
     color: {c.text_muted};
     background: {c.bg_elev_1};
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border: 1px solid {c.border_subtle};
     padding: 5px 12px;
     border-radius: {ra.pill};
     white-space: nowrap;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
   }}
   .app-header .ah-meta svg {{ flex-shrink: 0; opacity: 0.85; }}
 
@@ -182,9 +237,13 @@ def build_css(t: Tokens = TOKENS) -> str:
   .brand .brand-text {{ display: flex; flex-direction: column; line-height: 1.15; }}
   .brand .brand-name {{
     font-size: 1rem;
-    font-weight: {ty.weight_semibold};
+    font-weight: {ty.weight_bold};
     color: {c.text_primary};
     letter-spacing: -0.015em;
+    background: linear-gradient(135deg, {c.text_primary}, {c.accent_primary});
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }}
   .brand .brand-tag {{
     font-size: 0.66rem;
@@ -255,8 +314,8 @@ def build_css(t: Tokens = TOKENS) -> str:
   }}
   .kpi-card:hover {{
     border-color: {c.accent_primary};
-    transform: translateY(-1px);
-    box-shadow: 0 4px 18px rgba(0,163,224,0.12);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,163,224,0.12), 0 2px 8px rgba(0,0,0,0.2);
   }}
   .kpi-card .label {{
     color: {c.text_muted}; font-size: {ty.size_xs}; font-weight: {ty.weight_medium};
@@ -596,6 +655,125 @@ def build_css(t: Tokens = TOKENS) -> str:
     top: 0;
     z-index: 1;
     background: {c.bg_base};
+  }}
+
+  /* ── Premium: Staggered card entrance ──────────────────────────────── */
+  @keyframes cardFadeUp {{
+    from {{ opacity: 0; transform: translateY(12px); }}
+    to   {{ opacity: 1; transform: translateY(0); }}
+  }}
+  @keyframes glowPulse {{
+    0%, 100% {{ opacity: 0; }}
+    50% {{ opacity: 1; }}
+  }}
+  @keyframes countUp {{
+    from {{ opacity: 0; transform: translateY(4px); filter: blur(2px); }}
+    to   {{ opacity: 1; transform: translateY(0); filter: blur(0); }}
+  }}
+
+  /* Stagger entrance for KPI cards */
+  [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(1) .kpi-card {{ animation: cardFadeUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.05s both; }}
+  [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(2) .kpi-card {{ animation: cardFadeUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.12s both; }}
+  [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(3) .kpi-card {{ animation: cardFadeUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.19s both; }}
+  [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(4) .kpi-card {{ animation: cardFadeUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.26s both; }}
+  [data-testid="stHorizontalBlock"] > [data-testid="column"]:nth-child(5) .kpi-card {{ animation: cardFadeUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.33s both; }}
+
+  /* Stagger entrance for top-cards */
+  .top-card:nth-child(1) {{ animation: cardFadeUp 0.35s cubic-bezier(0.22,1,0.36,1) 0.08s both; }}
+  .top-card:nth-child(2) {{ animation: cardFadeUp 0.35s cubic-bezier(0.22,1,0.36,1) 0.16s both; }}
+  .top-card:nth-child(3) {{ animation: cardFadeUp 0.35s cubic-bezier(0.22,1,0.36,1) 0.24s both; }}
+  .top-card:nth-child(4) {{ animation: cardFadeUp 0.35s cubic-bezier(0.22,1,0.36,1) 0.32s both; }}
+  .top-card:nth-child(5) {{ animation: cardFadeUp 0.35s cubic-bezier(0.22,1,0.36,1) 0.40s both; }}
+
+  /* Number count-up feel for KPI values */
+  .kpi-card .value {{ animation: countUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.3s both; }}
+
+  /* ── Premium: Gradient glow on KPI cards ──────────────────────────── */
+  .kpi-card::before {{
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: {ra.md};
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(0,163,224,0.15), rgba(91,192,235,0.05), transparent 60%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }}
+  .kpi-card:hover::before {{ opacity: 1; }}
+
+  /* ── Premium: Enhanced hover glow ─────────────────────────────────── */
+  .kpi-card::after {{
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 120%; height: 120%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(ellipse at center, rgba(0,163,224,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }}
+  .kpi-card:hover::after {{ opacity: 1; }}
+
+  /* ── Premium: Subtle page background texture ──────────────────────── */
+  .block-container::before {{
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(0,163,224,0.03) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(91,192,235,0.02) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: -1;
+  }}
+
+  /* ── Premium: Top card gradient accent ────────────────────────────── */
+  .top-card {{
+    border-left: none !important;
+    border-image: linear-gradient(180deg, {c.accent_primary}, {c.accent_secondary}) 1;
+    border-left-width: 3px !important;
+    border-left-style: solid !important;
+  }}
+  .top-card:hover {{
+    box-shadow: -4px 0 16px -4px rgba(0,163,224,0.15), 0 4px 12px rgba(0,0,0,0.1);
+  }}
+
+  /* ── Premium: Navigation tabs ─────────────────────────────────────── */
+  .top-nav-wrap div[role="radiogroup"] > label:has(input:checked)::after {{
+    content: "";
+    position: absolute;
+    bottom: -7px; left: 20%; right: 20%;
+    height: 2px;
+    background: linear-gradient(90deg, {c.accent_primary}, {c.accent_secondary});
+    border-radius: 2px;
+  }}
+  .top-nav-wrap div[role="radiogroup"] > label {{
+    position: relative;
+  }}
+
+  /* ── Premium: Chart container styling ─────────────────────────────── */
+  [data-testid="stPlotlyChart"] > div {{
+    border-radius: {ra.md};
+    border: none;
+    background: transparent;
+    padding: 8px;
+  }}
+
+  /* ── Premium: Sidebar separator glow ──────────────────────────────── */
+  section[data-testid="stSidebar"] .stDivider {{
+    background: linear-gradient(90deg, transparent, {c.border_subtle}, transparent) !important;
+    height: 1px !important;
+    border: none !important;
+    opacity: 1 !important;
+  }}
+
+  /* ── Premium: Brand logo glow ─────────────────────────────────────── */
+  .brand .brand-logo svg {{
+    filter: drop-shadow(0 0 6px rgba(0,163,224,0.3));
   }}
 
   /* ── Micro-interacciones (respeta prefers-reduced-motion) ─────────── */
