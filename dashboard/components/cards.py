@@ -45,3 +45,57 @@ def top_card(
         f"</div>",
         unsafe_allow_html=True,
     )
+
+
+# ── Nivel → (color token CSS var, icon name) ───────────────────────────────
+_BADGE_CONFIG: dict[str, tuple[str, str]] = {
+    "success": ("var(--color-success)", "check-circle"),
+    "warning": ("var(--color-warning)", "alert-triangle"),
+    "danger": ("var(--color-danger)", "x-circle"),
+    "info": ("var(--color-accent-primary)", "info"),
+    "neutral": ("var(--color-text-muted)", "circle-dot"),
+}
+
+
+def status_badge(level: str, label: str) -> str:
+    """Devuelve HTML de un badge pill con color semántico e icono.
+
+    Args:
+        level: ``"success"``, ``"warning"``, ``"danger"``, ``"info"`` o
+               ``"neutral"``.
+        label: Texto del badge (se escapa automáticamente).
+
+    Returns:
+        String HTML listo para ``st.markdown(..., unsafe_allow_html=True)``.
+    """
+    from dashboard.components.icons import icon as _icon  # evitar circular
+
+    color, icon_name = _BADGE_CONFIG.get(level, _BADGE_CONFIG["neutral"])
+    safe_label = _html.escape(str(label))
+    icon_html = _icon(icon_name, size=12)
+    return (
+        f'<span class="status-badge status-badge--{level}" '
+        f'style="--badge-color:{color}">'
+        f"{icon_html} {safe_label}"
+        f"</span>"
+    )
+
+
+def with_tooltip(content_html: str, tooltip_text: str) -> str:
+    """Envuelve *content_html* en un contenedor con tooltip CSS-only.
+
+    El tooltip aparece encima del elemento al hacer hover.  No requiere JS.
+
+    Args:
+        content_html: HTML del elemento a envolver (no se escapa).
+        tooltip_text: Texto plano del tooltip (se escapa automáticamente).
+
+    Returns:
+        String HTML listo para ``st.markdown(..., unsafe_allow_html=True)``.
+    """
+    safe_tip = _html.escape(str(tooltip_text))
+    return (
+        f'<span class="has-tooltip" data-tip="{safe_tip}">'
+        f"{content_html}"
+        f"</span>"
+    )

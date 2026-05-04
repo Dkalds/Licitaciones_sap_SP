@@ -100,6 +100,44 @@ def loading_skeleton(rows: int = 3, height: str = "72px") -> None:
         )
 
 
+def kpi_skeleton(cols: int = 5) -> None:
+    """Skeleton placeholder con la forma exacta de una fila de KPI cards.
+
+    Renderiza *cols* columnas, cada una con un div que replica la estructura
+    visual de `.kpi-card` (label rect + value rect + sparkline rect) con la
+    animación shimmer, eliminando el salto visual al cargar los datos reales.
+    """
+    columns = st.columns(cols)
+    inner = (
+        '<div class="skeleton-kpi-label"></div>'
+        '<div class="skeleton-kpi-value"></div>'
+        '<div class="skeleton-kpi-spark"></div>'
+    )
+    for col in columns:
+        with col:
+            st.markdown(
+                f'<div class="kpi-card skeleton-card">{inner}</div>',
+                unsafe_allow_html=True,
+            )
+
+
+def card_skeleton(rows: int = 3) -> None:
+    """Skeleton placeholder con la forma exacta de una top-card.
+
+    Cada fila replica `.top-card` (amount rect + title rect + meta rect).
+    """
+    inner = (
+        '<div class="skeleton-tc-amount"></div>'
+        '<div class="skeleton-tc-title"></div>'
+        '<div class="skeleton-tc-meta"></div>'
+    )
+    for _ in range(rows):
+        st.markdown(
+            f'<div class="top-card skeleton-card">{inner}</div>',
+            unsafe_allow_html=True,
+        )
+
+
 @contextmanager
 def with_loading(message: str = "Cargando…"):
     """Context manager: muestra `st.spinner` mientras ejecuta el bloque.

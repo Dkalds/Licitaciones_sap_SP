@@ -36,7 +36,7 @@ class Colors:
     text_secondary: str = "#B0B0B0"
     text_card_title: str = "#E0E0E0"
     text_muted: str = "#A8A8A8"  # WCAG AA 4.7:1 sobre #0E1117
-    text_disabled: str = "#555555"
+    text_disabled: str = "#707070"  # WCAG AA ≥4.5:1 sobre #0E1117 (era #555555, 2.8:1)
     text_plot_axis: str = "#A8A8A8"
     text_plot_body: str = "#A0A0A0"
 
@@ -126,7 +126,8 @@ class Type:
 
 @dataclass(frozen=True)
 class Breakpoints:
-    mobile_max: int = 640  # < 640px
+    mobile_max: int = 640   # < 640px
+    tablet_mid: int = 768   # iPad portrait
     tablet_max: int = 1024  # 641–1024  # noqa: RUF003
     desktop_min: int = 1025  # ≥ 1025
 

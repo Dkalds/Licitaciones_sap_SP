@@ -5,13 +5,15 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from dashboard.components.cards import status_badge
 from dashboard.components.states import guarded_render
 from dashboard.components.tables import data_table
 from dashboard.data_loader import load_adjudicaciones
+from dashboard.kpi_config import SCORING_BAND_LEVELS
 from dashboard.pages._base import PageContext
 from dashboard.stats import risk_flags, score_oportunidad
 from dashboard.utils.export import to_excel_bytes
-from dashboard.utils.format import fmt_eur
+from dashboard.utils.format import fmt_eur, highlight_match
 
 
 @guarded_render
@@ -108,10 +110,13 @@ def render(ctx: PageContext) -> None:
     )
 
     st.divider()
-    st.subheader("🔎 Vista expandida (top 20 por score)")
+    st.subheader("Vista expandida (top 20 por score)")
+    _q = ctx.filters.q if ctx.filters.q and ctx.filters.q.strip() else ""
     for _, row in df.sort_values("score", ascending=False).head(20).iterrows():
         score_val = int(row.get("score") or 0)
-        banda = row.get("banda") or "—"
+        banda = str(row.get("banda") or "—")
+        level = SCORING_BAND_LEVELS.get(banda, "neutral")
+        badge_html = status_badge(level, banda)
         header = (
             f"{banda} · score {score_val}/100 · {fmt_eur(row['importe'])} — {row['titulo'][:80]}"
         )
@@ -128,10 +133,15 @@ def render(ctx: PageContext) -> None:
                 st.markdown(
                     f"**Provincia / CCAA:** {row.get('provincia', '—')} · {row.get('ccaa', '—')}"
                 )
+                # Título con highlight de búsqueda
+                titulo_hl = highlight_match(str(row.get("titulo") or ""), _q)
+                st.markdown(f"**Título:** {titulo_hl}", unsafe_allow_html=True)
                 st.markdown("**Descripción:**")
-                st.write(row.get("descripcion") or "—")
+                desc_hl = highlight_match(str(row.get("descripcion") or "—"), _q)
+                st.markdown(desc_hl, unsafe_allow_html=True)
             with cE2:
-                st.metric("Score", f"{score_val}/100", delta=banda)
+                st.markdown(badge_html, unsafe_allow_html=True)
+                st.metric("Score", f"{score_val}/100")
                 st.metric("Importe", fmt_eur(row["importe"]))
                 desg = row.get("desglose") or {}
                 if isinstance(desg, dict) and desg:

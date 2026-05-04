@@ -131,8 +131,16 @@ SCORING_WEIGHTS: dict[str, float] = {
 
 # Umbrales del score para etiquetado visual (badge).
 SCORING_BANDS: dict[str, tuple[int, str]] = {
-    "hot": (75, "🔥 Caliente"),
-    "warm": (50, "🟡 Atractiva"),
-    "cold": (25, "🟦 Tibia"),
-    "skip": (0, "⚪ Descarte"),
+    "hot": (75, "Caliente"),
+    "warm": (50, "Atractiva"),
+    "cold": (25, "Tibia"),
+    "skip": (0, "Descarte"),
+}
+
+# Colores semánticos por banda (para status_badge).
+SCORING_BAND_LEVELS: dict[str, str] = {
+    "Caliente": "danger",
+    "Atractiva": "warning",
+    "Tibia": "info",
+    "Descarte": "neutral",
 }
